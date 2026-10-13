@@ -63,6 +63,7 @@ class PlayerItemPanel extends StatefulWidget {
     required this.useTvPanel,
     required this.onPrevEpisode,
     required this.onHidePanel,
+    this.onSettingsVisibilityChanged,
   });
 
   final PlayerController playerController;
@@ -95,6 +96,8 @@ class PlayerItemPanel extends StatefulWidget {
   final bool useTvPanel;
   final VoidCallback onPrevEpisode;
   final VoidCallback onHidePanel;
+  // TV 适配：面板内设置抽屉开合上报（播放页据此让位返回键）。
+  final ValueChanged<bool>? onSettingsVisibilityChanged;
 
   @override
   State<PlayerItemPanel> createState() => _PlayerItemPanelState();
@@ -488,6 +491,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                 // TV 适配：选集 = 收起 TV 面板 + 打开选集侧面板（二级界面），
                 // 避免面板握着焦点导致侧面板无法操作。
                 onHidePanel: widget.onHidePanel,
+                onSettingsVisibilityChanged: widget.onSettingsVisibilityChanged,
                 onToggleSidePanel: widget.onToggleSidePanel == null
                     ? null
                     : () {

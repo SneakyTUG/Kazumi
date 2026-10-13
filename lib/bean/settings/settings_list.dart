@@ -1,3 +1,5 @@
+import 'package:kazumi/bean/widget/tv_focus_highlight.dart';
+import 'package:kazumi/utils/device.dart';
 import 'package:flutter/material.dart';
 
 import 'package:kazumi/bean/widget/content_section.dart';
@@ -216,7 +218,9 @@ class SettingsCategoryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return InkWell(
+    return TvFocusHighlight(
+      enabled: !isDesktop(),
+      child: InkWell(
       onTap: onTap,
       onHighlightChanged: SplitListRow.pressReporterOf(context),
       child: Padding(
@@ -260,6 +264,7 @@ class SettingsCategoryTile extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -293,7 +298,9 @@ class SettingsSliderTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Padding(
+    return TvFocusHighlight(
+      enabled: !isDesktop(),
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -336,6 +343,7 @@ class SettingsSliderTile extends StatelessWidget {
             onChanged: onChanged,
           ),
         ],
+      ),
       ),
     );
   }
@@ -420,7 +428,9 @@ class SettingsTile<T> extends StatelessWidget {
     final secondary =
         enabled ? colorScheme.onSurfaceVariant : _disabledOn(context);
 
-    return InkWell(
+    return TvFocusHighlight(
+      enabled: !isDesktop() && enabled,
+      child: InkWell(
       onTap: _tapHandler(context),
       onHighlightChanged: SplitListRow.pressReporterOf(context),
       child: Padding(
@@ -479,6 +489,7 @@ class SettingsTile<T> extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

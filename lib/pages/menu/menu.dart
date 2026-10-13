@@ -322,46 +322,29 @@ class _TvRailState extends State<_TvRail> {
       autofocus: widget.needsAutofocus,
       onKeyEvent: _handleKey,
       child: SizedBox(
-        width: 150,
+        width: 116,
         child: Column(
           children: [
             const SizedBox(height: 16),
-            // 品牌区：logo + 应用名
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: tvAccentColor,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: tvAccentColor.withOpacity(0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.play_arrow_rounded,
-                        color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Kazumi',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      color: colors.onSurface,
-                    ),
+            // 品牌区：仅 logo（窄栏下不再放应用名，保持留白与比例）
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: tvAccentColor,
+                borderRadius: BorderRadius.circular(11),
+                boxShadow: [
+                  BoxShadow(
+                    color: tvAccentColor.withOpacity(0.30),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
+              child: const Icon(Icons.play_arrow_rounded,
+                  color: Colors.white, size: 22),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -447,7 +430,7 @@ class _TvRailItem extends StatelessWidget {
       textColor = colors.onSurfaceVariant;
     }
     return Padding(
-      padding: const EdgeInsets.only(left: 10, right: 12, top: 4, bottom: 4),
+      padding: const EdgeInsets.only(left: 8, right: 10, top: 5, bottom: 5),
       child: Row(
         children: [
           // 选中指示条（未选中时收缩为 0 高度）
@@ -455,29 +438,29 @@ class _TvRailItem extends StatelessWidget {
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             width: 3,
-            height: selected ? 18 : 0,
+            height: selected ? 24 : 0,
             decoration: BoxDecoration(
               color: colors.primary,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
           Expanded(
             child: AnimatedScale(
-              scale: focused ? 1.04 : 1.0,
+              scale: focused ? 1.05 : 1.0,
               duration: const Duration(milliseconds: 150),
               curve: Curves.easeOutCubic,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCubic,
-                height: 44,
+                height: 58,
                 decoration: BoxDecoration(
                   color: focused
                       ? colors.primary
                       : selected
                           ? colors.primaryContainer
-                          : colors.onSurfaceVariant.withOpacity(0.07),
-                  borderRadius: BorderRadius.circular(22),
+                          : colors.onSurfaceVariant.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: focused
                         ? colors.onPrimary.withOpacity(0.85)
@@ -497,24 +480,24 @@ class _TvRailItem extends StatelessWidget {
                 child: GestureDetector(
                   onTap: onTap,
                   behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        Icon(icon, size: 21, color: iconColor),
-                        const SizedBox(width: 9),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: focused || selected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: textColor,
-                          ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 22, color: iconColor),
+                      const SizedBox(height: 3),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: focused || selected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: textColor,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -93,6 +93,10 @@ class _PlayerItemState extends State<PlayerItem>
   /// （自管焦点、大按钮、方向键导航）；触摸/鼠标唤出的仍用原面板。
   bool _tvPanelMode = false;
 
+  /// TV 适配：TV 面板内的设置抽屉是否打开。打开时早期键处理器必须全面让位，
+  /// 否则返回键会被「收起面板」逻辑吞掉，抽屉关不掉。
+  bool _tvSettingsOpen = false;
+
   /// TV 面板打开期间持有的 PlayerPanelHold（防自动隐藏）。
   /// 由本类掌控生命周期：hideVideoController 时先释放，否则 hold 会让
   /// _canHidePlayerPanel 为 false，返回键将永远收不起面板。
@@ -1488,7 +1492,8 @@ class _PlayerItemState extends State<PlayerItem>
                       isPanelVisible:
                           () => playerController.panel.showVideoController,
                       onPanelEscape: hideVideoController,
-                      isMenuOpen: () => _openPlayerMenuCount > 0,
+                      isMenuOpen: () =>
+                          _openPlayerMenuCount > 0 || _tvSettingsOpen,
                       isSidePanelOpen: () => videoPageController.sidePanelOpen,
                       onSidePanelClose: widget.onSidePanelClose,
                     ),
@@ -1625,6 +1630,12 @@ class _PlayerItemState extends State<PlayerItem>
                             useTvPanel: _tvPanelMode,
                             onPrevEpisode: () => handlePreNextEpisode('prev'),
                             onHidePanel: hideVideoController,
+                            onSettingsVisibilityChanged: (open) {
+                              if (_tvSettingsOpen == open) {
+                                return;
+                              }
+                              setState(() => _tvSettingsOpen = open);
+                            },
                             handleScreenShot: handleScreenshot,
                             showScreenshotCandidates: showScreenshotCandidates,
                             skipOP: skipOP,

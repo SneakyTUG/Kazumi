@@ -1,3 +1,5 @@
+import 'package:kazumi/bean/widget/tv_focus_highlight.dart';
+import 'package:kazumi/utils/device.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 
@@ -233,7 +235,8 @@ class _SettingsPageState extends State<SettingsPage> {
               : null,
           body: SafeArea(
             top: false,
-            child: Row(
+            child: FocusTraversalGroup(
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Keep the outlet at the same tree position on resize.
@@ -268,6 +271,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),
@@ -371,7 +375,9 @@ class _RailDestination extends StatelessWidget {
     final foreground = selected
         ? colorScheme.onSecondaryContainer
         : colorScheme.onSurfaceVariant;
-    return Padding(
+    return TvFocusHighlight(
+      enabled: !isDesktop(),
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
         color: selected ? colorScheme.secondaryContainer : Colors.transparent,
@@ -399,6 +405,7 @@ class _RailDestination extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

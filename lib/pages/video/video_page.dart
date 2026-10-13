@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:kazumi/bean/appbar/drag_to_move_bar.dart' as dtb;
 import 'package:kazumi/bean/dialog/adaptive_bottom_sheet.dart';
+import 'package:kazumi/bean/dialog/dialog_helper.dart';
 import 'package:kazumi/bean/widget/embedded_native_control_area.dart';
 import 'package:kazumi/bean/widget/loading_indicator.dart';
 import 'package:kazumi/bean/widget/media_error_widget.dart';
@@ -292,7 +293,40 @@ class _VideoPageState extends State<VideoPage>
   }
 
   void _onBackPressed() {
-    unawaited(Navigator.of(context).maybePop());
+    // 面板上的「返回」按钮是显式操作，直接退出（不走双击确认）。
+    if (_isExiting) {
+      return;
+    }
+    setState(() => _isExiting = true);
+    playerController.beginShutdown();
+    Navigator.of(context).pop();
+  }
+
+  /// TV 适配：返回键分层处理——
+  /// 上层界面（选集侧面板 / 播放控制面板 / 设置抽屉）打开时只收起该层；
+  /// 已经回到干净播放态时才走「再按一次退出」确认，避免误触直接退出。
+  DateTime? _lastBackConfirmAt;
+
+  void _handleSystemBack() {
+    if (_isExiting) {
+      return;
+    }
+    if (videoPageController.sidePanelOpen ||
+        playerController.panel.showVideoController) {
+      // 由播放器自身按键处理收起对应层，此处不做退出确认。
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastBackConfirmAt;
+    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+      _lastBackConfirmAt = now;
+      KazumiDialog.showToast(message: '再按一次返回', context: context);
+      return;
+    }
+    _lastBackConfirmAt = null;
+    setState(() => _isExiting = true);
+    playerController.beginShutdown();
+    Navigator.of(context).pop();
   }
 
   void pauseForTimedShutdown() {
@@ -304,11 +338,13 @@ class _VideoPageState extends State<VideoPage>
   @override
   Widget build(BuildContext context) {
     return PopScope(
+      // TV 适配：返回键由 _handleSystemBack 分层处理，默认不允许直接弹出路由。
+      canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) {
-          setState(() => _isExiting = true);
-          playerController.beginShutdown();
+          return;
         }
+        _handleSystemBack();
       },
       child: Observer(builder: (context) {
         final bool isPip = videoPageController.isPip;

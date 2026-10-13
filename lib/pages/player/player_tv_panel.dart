@@ -35,6 +35,7 @@ class PlayerTvPanel extends StatefulWidget {
     required this.handleSuperResolutionChange,
     this.onToggleSidePanel,
     this.onHidePanel,
+    this.onSettingsVisibilityChanged,
   });
 
   final PlayerController playerController;
@@ -50,6 +51,9 @@ class PlayerTvPanel extends StatefulWidget {
   final VoidCallback? onToggleSidePanel;
   // 收起本面板（TV 适配：5 秒空闲自动隐藏时由面板回调播放页）。
   final VoidCallback? onHidePanel;
+  // 设置抽屉开合状态上报：抽屉打开时播放页早期键处理器需全面让位，
+  // 否则返回键会被收面板逻辑吞掉，抽屉关不掉。
+  final ValueChanged<bool>? onSettingsVisibilityChanged;
 
   @override
   State<PlayerTvPanel> createState() => _PlayerTvPanelState();
@@ -59,6 +63,11 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'PlayerTvPanel');
   int _row = 1; // 初始焦点落在底栏（播放键）
   int _col = 0;
+
+  // TV 适配：设置走「面板内抽屉」而不是对话框路由——同一棵焦点树内自管按键，
+  // 没有路由转场与焦点迁移，操作即时响应（参照 Carey-L/kazumi TV 适配思路）。
+  bool _settingsOpen = false;
+  int _settingsIndex = 0;
 
   // TV 标准节奏：面板显示后若 5 秒内无按键则自动收起，露出干净画面；
   // 任意按键都会重置计时；有对话框/新路由覆盖时暂缓计时。
@@ -96,9 +105,14 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
     if (!mounted) {
       return;
     }
+    // 设置抽屉打开或上层有覆盖路由时都不自动收起面板。
+    if (_settingsOpen) {
+      _restartIdleTimer();
+      return;
+    }
     final route = ModalRoute.of(context);
     if (route != null && !route.isCurrent) {
-      // 设置对话框等覆盖层还在最上层：暂缓自动隐藏，等回来后重新计时。
+      // 覆盖层（如弹幕设置）还在最上层：暂缓自动隐藏，等回到本页再计时。
       _restartIdleTimer();
       return;
     }
@@ -151,15 +165,63 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
   }
 
   void _openSettings() {
-    showTvPlayerSettingsDialog(
-      context: context,
-      playerController: widget.playerController,
-      setPlaybackSpeed: widget.setPlaybackSpeed,
-      handleDanmaku: widget.handleDanmaku,
-      showDanmakuSettings: widget.showDanmakuSettings,
-      showVideoInfo: widget.showVideoInfo,
-      handleSuperResolutionChange: widget.handleSuperResolutionChange,
-    );
+    setState(() {
+      _settingsOpen = true;
+      _settingsIndex = 0;
+    });
+    widget.onSettingsVisibilityChanged?.call(true);
+  }
+
+  void _closeSettings() {
+    if (!_settingsOpen) {
+      return;
+    }
+    setState(() => _settingsOpen = false);
+    widget.onSettingsVisibilityChanged?.call(false);
+  }
+
+  void _adjustSpeed(int delta) {
+    final list = defaultPlaySpeedList;
+    final current = widget.playerController.playback.playerSpeed;
+    final index = list.indexOf(current);
+    final next = (index < 0 ? 0 : index + delta).clamp(0, list.length - 1);
+    unawaited(widget.setPlaybackSpeed(list[next]));
+  }
+
+  void _cycleSuperResolution(int delta) {
+    final values = SuperResolutionMode.values;
+    final current = widget.playerController.playback.superResolutionMode;
+    final next = (values.indexOf(current) + delta) % values.length;
+    unawaited(widget.handleSuperResolutionChange(values[next]));
+  }
+
+  Map<_TvSettingRowKey, void Function(int)> get _adjusters => {
+        _TvSettingRowKey.speed: _adjustSpeed,
+        _TvSettingRowKey.aspectRatio: _cycleAspectRatio,
+        _TvSettingRowKey.superResolution: _cycleSuperResolution,
+      };
+
+  void _activateSetting(int index) {
+    switch (_settingRowKeys[index]) {
+      case _TvSettingRowKey.speed:
+        _adjustSpeed(1);
+        break;
+      case _TvSettingRowKey.aspectRatio:
+        _cycleAspectRatio(1);
+        break;
+      case _TvSettingRowKey.superResolution:
+        _cycleSuperResolution(1);
+        break;
+      case _TvSettingRowKey.danmaku:
+        widget.handleDanmaku();
+        break;
+      case _TvSettingRowKey.danmakuSettings:
+        widget.showDanmakuSettings();
+        break;
+      case _TvSettingRowKey.videoInfo:
+        widget.showVideoInfo();
+        break;
+    }
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
@@ -175,6 +237,45 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
     // 面板期间有任意按键活动就重置自动隐藏计时。
     _restartIdleTimer();
     final key = event.logicalKey;
+    // 设置抽屉打开：按键全部由抽屉消费（返回键先关抽屉，而不是收起面板/退出）。
+    if (_settingsOpen) {
+      if (key == LogicalKeyboardKey.arrowUp) {
+        setState(() =>
+            _settingsIndex = (_settingsIndex - 1).clamp(0, _settingRowKeys.length - 1));
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowDown) {
+        setState(() =>
+            _settingsIndex = (_settingsIndex + 1).clamp(0, _settingRowKeys.length - 1));
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.escape ||
+          key == LogicalKeyboardKey.goBack) {
+        if (event is KeyDownEvent) {
+          _closeSettings();
+        }
+        return KeyEventResult.handled;
+      }
+      final adjust = _adjusters[_settingRowKeys[_settingsIndex]];
+      if (key == LogicalKeyboardKey.arrowLeft) {
+        adjust?.call(-1);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowRight) {
+        adjust?.call(1);
+        return KeyEventResult.handled;
+      }
+      if ((key == LogicalKeyboardKey.enter ||
+              key == LogicalKeyboardKey.numpadEnter ||
+              key == LogicalKeyboardKey.select ||
+              key == LogicalKeyboardKey.space) &&
+          event is KeyDownEvent) {
+        _activateSetting(_settingsIndex);
+        return KeyEventResult.handled;
+      }
+      // 其余按键一律消费，避免泄漏给默认焦点遍历。
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.arrowLeft) {
       _move(0, -1);
       return KeyEventResult.handled;
@@ -430,9 +531,139 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                   ),
                 ),
               ),
+              // ── 设置抽屉（面板内，非路由）──
+              if (_settingsOpen)
+                Positioned(
+                  right: 20,
+                  top: 16,
+                  bottom: 16,
+                  width: 340,
+                  child: _TvSettingsDrawer(
+                    playerController: widget.playerController,
+                    focusedIndex: _settingsIndex,
+                    onRowTap: _activateSetting,
+                  ),
+                ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// 设置抽屉的行定义顺序。
+const List<_TvSettingRowKey> _settingRowKeys = <_TvSettingRowKey>[
+  _TvSettingRowKey.speed,
+  _TvSettingRowKey.aspectRatio,
+  _TvSettingRowKey.superResolution,
+  _TvSettingRowKey.danmaku,
+  _TvSettingRowKey.danmakuSettings,
+  _TvSettingRowKey.videoInfo,
+];
+
+/// TV 播放设置抽屉：面板内浮层，不经过路由，焦点与按键全在面板内消化。
+class _TvSettingsDrawer extends StatelessWidget {
+  const _TvSettingsDrawer({
+    required this.playerController,
+    required this.focusedIndex,
+    required this.onRowTap,
+  });
+
+  final PlayerController playerController;
+  final int focusedIndex;
+  final ValueChanged<int> onRowTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xF21A1A1A),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 28,
+            offset: Offset(-6, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: tvAccentColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                '播放设置',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Observer(
+              builder: (context) {
+                final playback = playerController.playback;
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (var i = 0; i < _settingRowKeys.length; i++)
+                      _TvSettingRowTile(
+                        focused: focusedIndex == i,
+                        title: switch (_settingRowKeys[i]) {
+                          _TvSettingRowKey.speed => '倍速',
+                          _TvSettingRowKey.aspectRatio => '画面比例',
+                          _TvSettingRowKey.superResolution => '超分辨率',
+                          _TvSettingRowKey.danmaku => '弹幕',
+                          _TvSettingRowKey.danmakuSettings => '弹幕设置',
+                          _TvSettingRowKey.videoInfo => '视频详情',
+                        },
+                        valueText: switch (_settingRowKeys[i]) {
+                          _TvSettingRowKey.speed => '${playback.playerSpeed}x',
+                          _TvSettingRowKey.aspectRatio =>
+                            playerController.panel.aspectRatioMode.label,
+                          _TvSettingRowKey.superResolution =>
+                            playback.superResolutionMode.label,
+                          _TvSettingRowKey.danmaku =>
+                            playerController.danmaku.danmakuOn ? '开' : '关',
+                          _ => null,
+                        },
+                        hasValue: switch (_settingRowKeys[i]) {
+                          _TvSettingRowKey.danmakuSettings ||
+                          _TvSettingRowKey.videoInfo =>
+                            false,
+                          _ => true,
+                        },
+                        onTap: () => onRowTap(i),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 10),
+            child: Text(
+              '↑↓ 选择 · ←→ 调整 · 返回关闭',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -659,248 +890,6 @@ class _TvItem extends StatelessWidget {
   }
 }
 
-/// TV 设置对话框：单列表 + 左右键调值，OK 确认，返回关闭。
-/// 同样自管焦点，不依赖 Flutter 焦点遍历。
-class _TvPlayerSettingsDialog extends StatefulWidget {
-  const _TvPlayerSettingsDialog({
-    required this.playerController,
-    required this.setPlaybackSpeed,
-    required this.handleDanmaku,
-    required this.showDanmakuSettings,
-    required this.showVideoInfo,
-    required this.handleSuperResolutionChange,
-  });
-
-  final PlayerController playerController;
-  final Future<void> Function(double) setPlaybackSpeed;
-  final VoidCallback handleDanmaku;
-  final VoidCallback showDanmakuSettings;
-  final VoidCallback showVideoInfo;
-  final Future<void> Function(SuperResolutionMode) handleSuperResolutionChange;
-
-  @override
-  State<_TvPlayerSettingsDialog> createState() =>
-      _TvPlayerSettingsDialogState();
-}
-
-class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
-  final FocusNode _focusNode = FocusNode(debugLabel: 'TvPlayerSettings');
-  int _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    // TV 适配：注册早期键处理器，保证按键无论对话框焦点迁移是否完成
-    // 都先到本对话框——否则打开动画期间按键会落到身后的 TV 面板上，
-    // 造成「设置界面点击不流畅」。卸载时必须移除。
-    FocusManager.instance.addEarlyKeyEventHandler(_handleEarlyKey);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    FocusManager.instance.removeEarlyKeyEventHandler(_handleEarlyKey);
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  KeyEventResult _handleEarlyKey(KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
-      return KeyEventResult.ignored;
-    }
-    // 有更高层路由（如弹幕设置）覆盖时全面让位。
-    final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) {
-      return KeyEventResult.ignored;
-    }
-    return _processKey(event);
-  }
-
-  void _adjustSpeed(int delta) {
-    final list = defaultPlaySpeedList;
-    final current = widget.playerController.playback.playerSpeed;
-    final index = list.indexOf(current);
-    final next = (index < 0 ? 0 : index + delta).clamp(0, list.length - 1);
-    unawaited(widget.setPlaybackSpeed(list[next]));
-  }
-
-  void _cycleAspectRatio(int delta) {
-    final values = PlayerAspectRatio.values;
-    final current = widget.playerController.panel.aspectRatioMode;
-    final next = (values.indexOf(current) + delta) % values.length;
-    widget.playerController.panel.aspectRatioMode = values[next];
-  }
-
-  void _cycleSuperResolution(int delta) {
-    final values = SuperResolutionMode.values;
-    final current = widget.playerController.playback.superResolutionMode;
-    final next = (values.indexOf(current) + delta) % values.length;
-    unawaited(widget.handleSuperResolutionChange(values[next]));
-  }
-
-  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
-      return KeyEventResult.ignored;
-    }
-    // 早期键处理器已接管（返回 handled 后事件不会到这里），
-    // 这里仅作为焦点路径上的兜底。
-    return _processKey(event);
-  }
-
-  KeyEventResult _processKey(KeyEvent event) {
-    final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.arrowUp) {
-      setState(() => _index = (_index - 1).clamp(0, _rowKeys.length - 1));
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.arrowDown) {
-      setState(() => _index = (_index + 1).clamp(0, _rowKeys.length - 1));
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.escape ||
-        key == LogicalKeyboardKey.goBack) {
-      if (event is KeyDownEvent) {
-        Navigator.of(context).pop();
-      }
-      return KeyEventResult.handled;
-    }
-    final adjust = _adjusters[_index];
-    if (key == LogicalKeyboardKey.arrowLeft) {
-      // 无论当前行是否有调节值都消费左键，避免泄漏给默认焦点遍历
-      // 导致焦点跑出对话框、后续按键失灵。
-      adjust?.call(-1);
-      return KeyEventResult.handled;
-    }
-    if ((key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.numpadEnter ||
-            key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.arrowRight ||
-            key == LogicalKeyboardKey.space) &&
-        event is KeyDownEvent) {
-      if (key == LogicalKeyboardKey.arrowRight) {
-        adjust?.call(1);
-      } else {
-        _activate(_index);
-      }
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-
-  void _activate(int index) {
-    final key = _rowKeys[index];
-    switch (key) {
-      case _TvSettingRowKey.speed:
-        _adjustSpeed(1);
-        break;
-      case _TvSettingRowKey.aspectRatio:
-        _cycleAspectRatio(1);
-        break;
-      case _TvSettingRowKey.superResolution:
-        _cycleSuperResolution(1);
-        break;
-      case _TvSettingRowKey.danmaku:
-        widget.handleDanmaku();
-        break;
-      case _TvSettingRowKey.danmakuSettings:
-        Navigator.of(context).pop();
-        widget.showDanmakuSettings();
-        break;
-      case _TvSettingRowKey.videoInfo:
-        Navigator.of(context).pop();
-        widget.showVideoInfo();
-        break;
-    }
-  }
-
-  static const List<_TvSettingRowKey> _rowKeys = <_TvSettingRowKey>[
-    _TvSettingRowKey.speed,
-    _TvSettingRowKey.aspectRatio,
-    _TvSettingRowKey.superResolution,
-    _TvSettingRowKey.danmaku,
-    _TvSettingRowKey.danmakuSettings,
-    _TvSettingRowKey.videoInfo,
-  ];
-
-  Map<_TvSettingRowKey, void Function(int)> get _adjusters => {
-        _TvSettingRowKey.speed: _adjustSpeed,
-        _TvSettingRowKey.aspectRatio: _cycleAspectRatio,
-        _TvSettingRowKey.superResolution: _cycleSuperResolution,
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('播放设置'),
-      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-      content: Focus(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: _handleKey,
-        child: Observer(
-          builder: (context) {
-            final playback = widget.playerController.playback;
-            final rows = <Widget>[
-              for (var i = 0; i < _rowKeys.length; i++)
-                _TvSettingRowTile(
-                  focused: _index == i,
-                  title: switch (_rowKeys[i]) {
-                    _TvSettingRowKey.speed => '倍速',
-                    _TvSettingRowKey.aspectRatio => '画面比例',
-                    _TvSettingRowKey.superResolution => '超分辨率',
-                    _TvSettingRowKey.danmaku => '弹幕',
-                    _TvSettingRowKey.danmakuSettings => '弹幕设置',
-                    _TvSettingRowKey.videoInfo => '视频详情',
-                  },
-                  valueText: switch (_rowKeys[i]) {
-                    _TvSettingRowKey.speed =>
-                      '${playback.playerSpeed}x',
-                    _TvSettingRowKey.aspectRatio =>
-                      widget.playerController.panel.aspectRatioMode.label,
-                    _TvSettingRowKey.superResolution =>
-                      playback.superResolutionMode.label,
-                    _TvSettingRowKey.danmaku =>
-                      widget.playerController.danmaku.danmakuOn ? '开' : '关',
-                    _ => null,
-                  },
-                  hasValue: switch (_rowKeys[i]) {
-                    _TvSettingRowKey.danmakuSettings ||
-                    _TvSettingRowKey.videoInfo =>
-                      false,
-                    _ => true,
-                  },
-                  onTap: () => _activate(i),
-                ),
-            ];
-            return SizedBox(
-              width: 360,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final row in rows)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: row,
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-      // actions 留空：TV 上返回键关闭即可。
-      actions: const <Widget>[],
-      // 提示条
-      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
-      backgroundColor: Theme.of(context).colorScheme.surface,
-    );
-  }
-}
-
 enum _TvSettingRowKey {
   speed,
   aspectRatio,
@@ -983,29 +972,4 @@ class _TvSettingRowTile extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 打开 TV 播放设置对话框。
-void showTvPlayerSettingsDialog({
-  required BuildContext context,
-  required PlayerController playerController,
-  required Future<void> Function(double) setPlaybackSpeed,
-  required VoidCallback handleDanmaku,
-  required VoidCallback showDanmakuSettings,
-  required VoidCallback showVideoInfo,
-  required Future<void> Function(SuperResolutionMode) handleSuperResolutionChange,
-}) {
-  showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    barrierColor: Colors.black54,
-    builder: (_) => _TvPlayerSettingsDialog(
-      playerController: playerController,
-      setPlaybackSpeed: setPlaybackSpeed,
-      handleDanmaku: handleDanmaku,
-      showDanmakuSettings: showDanmakuSettings,
-      showVideoInfo: showVideoInfo,
-      handleSuperResolutionChange: handleSuperResolutionChange,
-    ),
-  );
 }
