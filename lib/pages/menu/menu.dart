@@ -7,6 +7,7 @@ import 'package:kazumi/bean/widget/embedded_native_control_area.dart';
 import 'package:kazumi/navigation.dart';
 import 'package:kazumi/pages/menu/route_visibility.dart';
 import 'package:kazumi/pages/router.dart';
+import 'package:kazumi/utils/constants.dart';
 
 class ScaffoldMenu extends StatefulWidget {
   const ScaffoldMenu({super.key, required this.location});
@@ -321,22 +322,46 @@ class _TvRailState extends State<_TvRail> {
       autofocus: widget.needsAutofocus,
       onKeyEvent: _handleKey,
       child: SizedBox(
-        width: 148,
+        width: 184,
         child: Column(
           children: [
-            const SizedBox(height: 18),
-            // 顶部标识
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: BorderRadius.circular(14),
+            const SizedBox(height: 22),
+            // 品牌区：logo + 应用名
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: tvAccentColor,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: tvAccentColor.withOpacity(0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded,
+                        color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Kazumi',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ],
               ),
-              child: Icon(Icons.play_arrow_rounded,
-                  color: colors.onPrimary, size: 30),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -358,7 +383,16 @@ class _TvRailState extends State<_TvRail> {
                 ],
               ),
             ),
-            // 底部搜索
+            // 分隔线 + 底部搜索
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: colors.onSurfaceVariant.withOpacity(0.15),
+              ),
+            ),
+            const SizedBox(height: 12),
             _TvRailItem(
               icon: Icons.search_rounded,
               label: '搜索',
@@ -370,7 +404,7 @@ class _TvRailState extends State<_TvRail> {
                 _activate(0);
               },
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -378,6 +412,9 @@ class _TvRailState extends State<_TvRail> {
   }
 }
 
+/// TV 侧边栏导航项：横排胶囊样式（现代 TV 风格）。
+/// 聚焦 = primary 填充胶囊 + 白描边 + 发光 + 轻微放大；
+/// 选中 = primaryContainer 胶囊 + 左侧 primary 指示条。
 class _TvRailItem extends StatelessWidget {
   const _TvRailItem({
     required this.icon,
@@ -397,64 +434,93 @@ class _TvRailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = selected || focused
-        ? colors.primary
-        : colors.onSurfaceVariant;
-    return AnimatedScale(
-      scale: focused ? 1.06 : 1.0,
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOutCubic,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: focused
-              ? colors.primary.withOpacity(0.14)
-              : selected
-                  ? colors.primaryContainer
-                  : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: focused ? colors.primary : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: focused
-              ? [
-                  BoxShadow(
-                    color: colors.primary.withOpacity(0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : const <BoxShadow>[],
-        ),
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 26, color: iconColor),
-                const SizedBox(height: 5),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: focused || selected
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                    color: selected || focused
-                        ? colors.primary
-                        : colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
+    final Color iconColor;
+    final Color textColor;
+    if (focused) {
+      iconColor = colors.onPrimary;
+      textColor = colors.onPrimary;
+    } else if (selected) {
+      iconColor = colors.primary;
+      textColor = colors.primary;
+    } else {
+      iconColor = colors.onSurfaceVariant;
+      textColor = colors.onSurfaceVariant;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, right: 14, top: 5, bottom: 5),
+      child: Row(
+        children: [
+          // 选中指示条（未选中时收缩为 0 高度）
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            width: 4,
+            height: selected ? 22 : 0,
+            decoration: BoxDecoration(
+              color: colors.primary,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-        ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: AnimatedScale(
+              scale: focused ? 1.04 : 1.0,
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOutCubic,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: focused
+                      ? colors.primary
+                      : selected
+                          ? colors.primaryContainer
+                          : colors.onSurfaceVariant.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(
+                    color: focused
+                        ? colors.onPrimary.withOpacity(0.85)
+                        : Colors.transparent,
+                    width: 1.6,
+                  ),
+                  boxShadow: focused
+                      ? [
+                          BoxShadow(
+                            color: colors.primary.withOpacity(0.40),
+                            blurRadius: 16,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : const <BoxShadow>[],
+                ),
+                child: GestureDetector(
+                  onTap: onTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 23, color: iconColor),
+                        const SizedBox(width: 11),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: focused || selected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

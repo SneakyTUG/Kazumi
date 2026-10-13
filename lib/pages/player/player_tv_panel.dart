@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,7 +10,7 @@ import 'package:kazumi/pages/player/player_controller.dart';
 import 'package:kazumi/utils/constants.dart';
 import 'package:kazumi/utils/format.dart';
 
-/// TV（遥控器）专用播放控制面板。
+/// TV（遥控器）专用播放控制面板（bilibili 风格）。
 ///
 /// 完全自管焦点：不依赖 Flutter 默认焦点遍历（在电视上不可控），
 /// 用行列索引状态驱动高亮，方向键/确认键全部在本面板的按键处理器内消化。
@@ -53,8 +54,8 @@ class PlayerTvPanel extends StatefulWidget {
 
 class _PlayerTvPanelState extends State<PlayerTvPanel> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'PlayerTvPanel');
-  int _row = 1; // 初始焦点落在底栏（快退/播放）
-  int _col = 1;
+  int _row = 1; // 初始焦点落在底栏（播放键）
+  int _col = 0;
 
   // 与 build 中渲染的项目一一对应的动作矩阵，build 内每次刷新。
   List<List<VoidCallback>> _actions = const [<VoidCallback>[], <VoidCallback>[]];
@@ -121,13 +122,6 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
     widget.playerController.panel.aspectRatioMode = values[next];
   }
 
-  void _cycleSuperResolution(int delta) {
-    final values = SuperResolutionMode.values;
-    final current = widget.playerController.playback.superResolutionMode;
-    final next = (values.indexOf(current) + delta) % values.length;
-    unawaited(widget.handleSuperResolutionChange(values[next]));
-  }
-
   void _openSettings() {
     showTvPlayerSettingsDialog(
       context: context,
@@ -174,120 +168,96 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
     return KeyEventResult.ignored;
   }
 
+  /// 底栏动作定义：与渲染顺序一一对应。
+  List<_TvPanelActionDef> _bottomDefs(bool playing) {
+    final danmakuOn = widget.playerController.danmaku.danmakuOn;
+    return <_TvPanelActionDef>[
+      _TvPanelActionDef(
+        icon: playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        label: playing ? '暂停' : '播放',
+        onTap: () => widget.playerController.playOrPause(),
+      ),
+      _TvPanelActionDef(
+        icon: Icons.skip_previous_rounded,
+        label: '上一集',
+        onTap: widget.onPrevEpisode,
+      ),
+      _TvPanelActionDef(
+        icon: Icons.skip_next_rounded,
+        label: '下一集',
+        onTap: widget.onNextEpisode,
+      ),
+      if (widget.onToggleSidePanel != null)
+        _TvPanelActionDef(
+          icon: Icons.menu_open_rounded,
+          label: '选集',
+          onTap: widget.onToggleSidePanel!,
+        ),
+      _TvPanelActionDef(
+        icon: Icons.fast_rewind_rounded,
+        label: '快退',
+        onTap: () => widget.playerController.seeking.seekBy(
+          Duration(
+              seconds: -widget.playerController.playback.arrowKeySkipTime),
+        ),
+      ),
+      _TvPanelActionDef(
+        icon: Icons.fast_forward_rounded,
+        label: '快进',
+        onTap: () => widget.playerController.seeking.seekBy(
+          Duration(seconds: widget.playerController.playback.arrowKeySkipTime),
+        ),
+      ),
+      _TvPanelActionDef(
+        icon: danmakuOn
+            ? Icons.comment_rounded
+            : Icons.comments_disabled_rounded,
+        label: '弹幕',
+        valueText: danmakuOn ? '开' : '关',
+        active: danmakuOn,
+        onTap: widget.handleDanmaku,
+      ),
+      _TvPanelActionDef(
+        icon: Icons.speed_rounded,
+        label: '倍速',
+        valueText: '${widget.playerController.playback.playerSpeed}x',
+        onTap: () => _cycleSpeed(1),
+      ),
+      _TvPanelActionDef(
+        icon: Icons.aspect_ratio_rounded,
+        label: '比例',
+        valueText: widget.playerController.panel.aspectRatioMode.label,
+        onTap: () => _cycleAspectRatio(1),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Focus(
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _handleKey,
       child: Observer(
         builder: (context) {
-          final playback = widget.playerController.playback;
-          final playing = playback.playing;
-          final speed = playback.playerSpeed;
-          final aspect = widget.playerController.panel.aspectRatioMode;
-          final hasSidePanel = widget.onToggleSidePanel != null;
+          final playing = widget.playerController.playback.playing;
+          final defs = _bottomDefs(playing);
 
           _actions = [
-            [
-              widget.onBack,
-              _openSettings,
-            ],
-            [
-              () => widget.playerController.seeking.seekBy(
-                    Duration(seconds: -widget.playerController.playback.arrowKeySkipTime),
-                  ),
-              () => widget.playerController.playOrPause(),
-              () => widget.playerController.seeking.seekBy(
-                    Duration(seconds: widget.playerController.playback.arrowKeySkipTime),
-                  ),
-              widget.onPrevEpisode,
-              widget.onNextEpisode,
-              if (hasSidePanel) widget.onToggleSidePanel!,
-              widget.handleDanmaku,
-              () => _cycleSpeed(1),
-              () => _cycleAspectRatio(1),
-            ],
+            [widget.onBack, _openSettings],
+            [for (final def in defs) def.onTap],
           ];
 
-          final bottomItems = <Widget>[
-            _TvItem(
-              icon: Icons.fast_rewind_rounded,
-              label: '快退',
-              focused: _row == 1 && _col == 0,
-              onTap: () => widget.playerController.seeking.seekBy(
-                Duration(
-                    seconds: -widget.playerController.playback.arrowKeySkipTime),
-              ),
-            ),
-            _TvItem(
-              icon: playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              label: playing ? '暂停' : '播放',
-              focused: _row == 1 && _col == 1,
-              onTap: () => widget.playerController.playOrPause(),
-            ),
-            _TvItem(
-              icon: Icons.fast_forward_rounded,
-              label: '快进',
-              focused: _row == 1 && _col == 2,
-              onTap: () => widget.playerController.seeking.seekBy(
-                Duration(
-                    seconds: widget.playerController.playback.arrowKeySkipTime),
-              ),
-            ),
-            _TvItem(
-              icon: Icons.skip_previous_rounded,
-              label: '上一集',
-              focused: _row == 1 && _col == 3,
-              onTap: widget.onPrevEpisode,
-            ),
-            _TvItem(
-              icon: Icons.skip_next_rounded,
-              label: '下一集',
-              focused: _row == 1 && _col == 4,
-              onTap: widget.onNextEpisode,
-            ),
-            if (hasSidePanel)
-              _TvItem(
-                icon: Icons.menu_open_rounded,
-                label: '选集',
-                focused: _row == 1 && _col == 5,
-                onTap: widget.onToggleSidePanel,
-              ),
-            _TvItem(
-              icon: widget.playerController.danmaku.danmakuOn
-                  ? Icons.comment_rounded
-                  : Icons.comments_disabled_rounded,
-              label: '弹幕',
-              valueText: widget.playerController.danmaku.danmakuOn ? '开' : '关',
-              focused: _row == 1 && _col == _rowLength(1) - 3,
-              onTap: widget.handleDanmaku,
-            ),
-            _TvItem(
-              icon: Icons.speed_rounded,
-              label: '倍速',
-              valueText: '${speed}x',
-              focused: _row == 1 && _col == _rowLength(1) - 2,
-              onTap: () => _cycleSpeed(1),
-            ),
-            _TvItem(
-              icon: Icons.aspect_ratio_rounded,
-              label: '比例',
-              valueText: aspect.label,
-              focused: _row == 1 && _col == _rowLength(1) - 1,
-              onTap: () => _cycleAspectRatio(1),
-            ),
-          ];
-
-          final position = playback.currentPosition;
-          final duration = playback.duration;
+          final position = widget.playerController.playback.currentPosition;
+          final duration = widget.playerController.playback.duration;
           final progress = duration > Duration.zero
-              ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+              ? (position.inMilliseconds / duration.inMilliseconds)
+                  .clamp(0.0, 1.0)
               : 0.0;
 
           return Stack(
             children: [
+              // ── 顶栏：返回 + 标题 + 设置 ──
               Positioned(
                 top: 0,
                 left: 0,
@@ -298,7 +268,7 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.75),
+                        Colors.black.withOpacity(0.82),
                         Colors.transparent,
                       ],
                     ),
@@ -306,16 +276,25 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                   child: SafeArea(
                     bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
                       child: Row(
                         children: [
-                          _TvItem(
+                          _TvRoundButton(
                             icon: Icons.arrow_back_rounded,
-                            label: '返回',
                             focused: _row == 0 && _col == 0,
                             onTap: widget.onBack,
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
+                          // bilibili 风格标题：粉色竖条 + 白色粗体
+                          Container(
+                            width: 4,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: tvAccentColor,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               widget.title,
@@ -323,15 +302,14 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          _TvItem(
-                            icon: Icons.settings_rounded,
-                            label: '设置',
+                          const SizedBox(width: 16),
+                          _TvRoundButton(
+                            icon: Icons.settings_outlined,
                             focused: _row == 0 && _col == 1,
                             onTap: _openSettings,
                           ),
@@ -341,6 +319,7 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                   ),
                 ),
               ),
+              // ── 底栏：进度条 + 控制按钮 ──
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -351,7 +330,7 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withOpacity(0.8),
+                        Colors.black.withOpacity(0.88),
                         Colors.transparent,
                       ],
                     ),
@@ -359,47 +338,52 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
                   child: SafeArea(
                     top: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                      padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // 进度条行：当前时间 / 进度（带滑块圆点）/ 总时长
                           Row(
                             children: [
                               Text(
                                 durationToString(position),
                                 style: const TextStyle(
-                                    color: Colors.white70, fontSize: 12),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  minHeight: 4,
-                                  borderRadius: BorderRadius.circular(2),
-                                  color: colors.primary,
-                                  backgroundColor: Colors.white24,
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _TvProgressBar(progress: progress),
+                              ),
+                              const SizedBox(width: 12),
                               Text(
                                 durationToString(duration),
                                 style: const TextStyle(
-                                    color: Colors.white70, fontSize: 12),
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 18),
+                          // 控制按钮行
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (var i = 0; i < bottomItems.length; i++)
+                              for (var i = 0; i < defs.length; i++)
                                 Expanded(
-                                  child: Padding(
-                                    padding: EdgeInsets.only(
-                                      right: i == bottomItems.length - 1 ? 0 : 8,
+                                  child: Center(
+                                    child: _TvItem(
+                                      icon: defs[i].icon,
+                                      label: defs[i].label,
+                                      valueText: defs[i].valueText,
+                                      active: defs[i].active,
+                                      focused: _row == 1 && _col == i,
+                                      onTap: defs[i].onTap,
                                     ),
-                                    child: Center(child: bottomItems[i]),
                                   ),
                                 ),
                             ],
@@ -418,7 +402,144 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
   }
 }
 
-/// TV 面板单个可聚焦项。焦点高亮对齐 TV 观感：primary 底 + 描边。
+/// 底栏单个动作的定义（图标 + 文案 + 动作）。
+class _TvPanelActionDef {
+  const _TvPanelActionDef({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.valueText,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final String? valueText;
+  // 是否处于激活状态（如弹幕已开启）：未聚焦时图标用强调色标示。
+  final bool active;
+}
+
+/// TV 面板顶栏圆形按钮（返回/设置）。
+class _TvRoundButton extends StatelessWidget {
+  const _TvRoundButton({
+    required this.icon,
+    required this.focused,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final bool focused;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: focused
+            ? tvAccentColor
+            : Colors.white.withOpacity(0.14),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: focused ? Colors.white.withOpacity(0.9) : Colors.transparent,
+          width: 2,
+        ),
+        boxShadow: focused
+            ? [
+                BoxShadow(
+                  color: tvAccentColor.withOpacity(0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : const <BoxShadow>[],
+      ),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Icon(icon, size: 24, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// bilibili 风格进度条：细轨道 + 强调色已播段 + 白色圆点滑块。
+class _TvProgressBar extends StatelessWidget {
+  const _TvProgressBar({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        const thumbSize = 12.0;
+        final fillWidth = (width * progress).clamp(0.0, width);
+        final thumbLeft = (fillWidth - thumbSize / 2).clamp(0.0, width - thumbSize);
+        return SizedBox(
+          height: 14,
+          child: Stack(
+            children: [
+              // 轨道
+              Positioned(
+                top: 5,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // 已播放段
+              Positioned(
+                top: 5,
+                left: 0,
+                child: Container(
+                  height: 4,
+                  width: fillWidth,
+                  decoration: BoxDecoration(
+                    color: tvAccentColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // 滑块圆点
+              Positioned(
+                left: thumbLeft,
+                top: 1,
+                child: Container(
+                  width: thumbSize,
+                  height: thumbSize,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// TV 面板单个可聚焦项：bilibili 风格胶囊按钮。
+/// 聚焦 = 强调色填充 + 白描边 + 发光；弹幕等激活态未聚焦时图标用强调色。
 class _TvItem extends StatelessWidget {
   const _TvItem({
     required this.icon,
@@ -426,6 +547,7 @@ class _TvItem extends StatelessWidget {
     required this.focused,
     this.onTap,
     this.valueText,
+    this.active = false,
   });
 
   final IconData icon;
@@ -433,53 +555,63 @@ class _TvItem extends StatelessWidget {
   final bool focused;
   final VoidCallback? onTap;
   final String? valueText;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final iconColor = focused
+        ? Colors.white
+        : active
+            ? tvAccentColor
+            : Colors.white.withOpacity(0.85);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
-        color: focused
-            ? colors.primary
-            : Colors.black.withOpacity(0.45),
-        borderRadius: BorderRadius.circular(12),
+        color: focused ? tvAccentColor : Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: focused ? colors.onPrimary : Colors.transparent,
+          color: focused ? Colors.white.withOpacity(0.9) : Colors.transparent,
           width: 2,
         ),
+        boxShadow: focused
+            ? [
+                BoxShadow(
+                  color: tvAccentColor.withOpacity(0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : const <BoxShadow>[],
       ),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 22,
-                color: focused ? colors.onPrimary : Colors.white,
-              ),
+              Icon(icon, size: 21, color: iconColor),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: focused ? colors.onPrimary : Colors.white,
+                  color: focused ? Colors.white : Colors.white.withOpacity(0.9),
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: focused ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
               if (valueText != null) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Text(
                   valueText!,
                   style: TextStyle(
                     color: focused
-                        ? colors.onPrimary.withOpacity(0.85)
-                        : Colors.white70,
+                        ? Colors.white.withOpacity(0.92)
+                        : Colors.white60,
                     fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -641,7 +773,6 @@ class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return AlertDialog(
       title: const Text('播放设置'),
       contentPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -704,7 +835,7 @@ class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
       actions: const <Widget>[],
       // 提示条
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
-      backgroundColor: colors.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
     );
   }
 }
@@ -740,10 +871,10 @@ class _TvSettingRowTile extends StatelessWidget {
       duration: const Duration(milliseconds: 120),
       margin: const EdgeInsets.symmetric(vertical: 3),
       decoration: BoxDecoration(
-        color: focused ? colors.primaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
+        color: focused ? tvAccentColor : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: focused ? colors.primary : Colors.transparent,
+          color: focused ? Colors.white.withOpacity(0.9) : Colors.transparent,
           width: 2,
         ),
       ),
@@ -755,7 +886,8 @@ class _TvSettingRowTile extends StatelessWidget {
           title,
           style: TextStyle(
             fontSize: 15,
-            color: focused ? colors.onPrimaryContainer : colors.onSurface,
+            fontWeight: focused ? FontWeight.w600 : FontWeight.w400,
+            color: focused ? Colors.white : colors.onSurface,
           ),
         ),
         trailing: hasValue
@@ -765,32 +897,27 @@ class _TvSettingRowTile extends StatelessWidget {
                   Icon(
                     Icons.chevron_left_rounded,
                     size: 18,
-                    color: focused
-                        ? colors.onPrimaryContainer
-                        : colors.outline,
+                    color: focused ? Colors.white70 : colors.outline,
                   ),
                   Text(
                     valueText ?? '',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: focused
-                          ? colors.onPrimaryContainer
-                          : colors.onSurface,
+                      color: focused ? Colors.white : colors.onSurfaceVariant,
                     ),
                   ),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
-                    color:
-                        focused ? colors.onPrimaryContainer : colors.outline,
+                    color: focused ? Colors.white70 : colors.outline,
                   ),
                 ],
               )
             : Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
-                color: focused ? colors.onPrimaryContainer : colors.outline,
+                color: focused ? Colors.white70 : colors.outline,
               ),
       ),
     );

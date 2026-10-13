@@ -207,6 +207,9 @@ final List<String> defaultAnimeTags = const [
   '异世界',
 ];
 
+// TV 播放界面强调色（bilibili 风格粉），用于播放面板焦点高亮与进度条。
+const Color tvAccentColor = Color(0xFFFB7299);
+
 // 播放器默认快捷键
 final Map<String, List<String>> defaultShortcuts = const {
   'playorpause': [' '],
@@ -214,8 +217,9 @@ final Map<String, List<String>> defaultShortcuts = const {
   'rewind': ['Arrow Left'],
   'next': ['N'],
   'prev': ['P'],
-  'volumeup': ['Arrow Up'],
-  'volumedown': ['Arrow Down'],
+  // TV 适配：↑/↓ 不再映射音量（遥控器上下键留给面板/焦点导航），置空禁用。
+  'volumeup': [],
+  'volumedown': [],
   'togglemute': ['M'],
   'fullscreen': ['F'],
   'exitfullscreen': ['Escape'],

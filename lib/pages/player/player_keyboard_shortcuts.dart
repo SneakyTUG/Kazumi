@@ -91,12 +91,31 @@ class _PlayerKeyboardShortcutsState extends State<PlayerKeyboardShortcuts> {
   }
 
   Map<String, List<String>> _loadShortcuts() {
+    // TV 适配：↑/↓ 曾默认映射音量调节，现改为不绑定（上下键留给面板/焦点导航）。
+    // 旧默认值可能已被键盘设置页持久化，这里把「未修改过的旧默认」迁移为空绑定，
+    // 避免改默认值后残留旧绑定。用户显式追加过其它键的（长度不符）则不动。
+    const legacyVolumeKeys = <String, List<String>>{
+      'volumeup': <String>['Arrow Up'],
+      'volumedown': <String>['Arrow Down'],
+    };
+    final volumeOverrides = <String, List<String>>{};
+    legacyVolumeKeys.forEach((action, legacyKeys) {
+      final stored = GStorage.getStringListSettingByName('shortcut_$action');
+      if (listEquals(stored, legacyKeys)) {
+        volumeOverrides[action] = const <String>[];
+        unawaited(GStorage.putStringListSettingByName(
+          'shortcut_$action',
+          const <String>[],
+        ));
+      }
+    });
     return <String, List<String>>{
       for (final entry in defaultShortcuts.entries)
-        entry.key: GStorage.getStringListSettingByName(
-          'shortcut_${entry.key}',
-          defaultValue: entry.value,
-        ),
+        entry.key: volumeOverrides[entry.key] ??
+            GStorage.getStringListSettingByName(
+              'shortcut_${entry.key}',
+              defaultValue: entry.value,
+            ),
     };
   }
 
