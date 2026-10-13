@@ -98,28 +98,26 @@ class _NetworkMirrorSettingsState extends State<NetworkMirrorSettings> {
   }) async {
     final selected = await KazumiDialog.show<T>(
       context: context,
-      builder: (context) => SimpleDialog(
+          builder: (context) => SimpleDialog(
         title: Text(title),
         children: [
-          RadioGroup<T>(
-            groupValue: current,
-            onChanged: (value) => Navigator.of(context).pop(value),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final mode in modes)
-                  RadioListTile<T>(
-                    value: mode,
-                    title: Text(label(mode)),
-                    subtitle: Text(
-                      description(mode),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final mode in modes)
+                RadioListTile<T>(
+                value: mode,
+                groupValue: current,
+                onChanged: (value) => Navigator.of(context).pop(value),
+                title: Text(label(mode)),
+                subtitle: Text(
+                  description(mode),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
         ],
       ),
     );

@@ -31,6 +31,9 @@ class PlayerKeyboardShortcuts extends StatefulWidget {
     this.longPressActions = const <String, PlayerLongPressShortcutActions>{},
     this.isBlocked,
     this.shortcuts,
+    this.isPanelVisible,
+    this.onPanelEscape,
+    this.isMenuOpen,
   });
 
   final FocusNode focusScopeNode;
@@ -38,6 +41,15 @@ class PlayerKeyboardShortcuts extends StatefulWidget {
   final Map<String, PlayerLongPressShortcutActions> longPressActions;
   final bool Function()? isBlocked;
   final Map<String, List<String>>? shortcuts;
+  // 播放器控制面板（含进度条/按钮）是否可见。可见时应让出方向键与确认键，
+  // 交给面板内的控件处理焦点遍历，否则早期键处理器会私吞方向键导致面板按钮选不到。
+  final bool Function()? isPanelVisible;
+  // 面板可见时按「返回/Back」应优先收起面板而非退出播放器。
+  final VoidCallback? onPanelEscape;
+  // 播放器内的 MenuAnchor 菜单（更多选项/倍速/比例等）是否打开。
+  // 打开时 Back/Escape 必须放行给菜单自身处理（菜单内的按键处理器会关闭菜单），
+  // 否则会被本处理器吞掉，遥控器无法用返回键关闭菜单。
+  final bool Function()? isMenuOpen;
 
   @override
   State<PlayerKeyboardShortcuts> createState() =>
@@ -89,6 +101,29 @@ class _PlayerKeyboardShortcutsState extends State<PlayerKeyboardShortcuts> {
         _invokeAction(longPressActions.onRelease);
         return KeyEventResult.handled;
       }
+    }
+
+    // 面板可见时：早期键处理器全面让位，把方向键/确认键交给面板内的焦点控件，
+    // 否则箭头键会被播放器快捷键吃掉，电视遥控器无法在面板按钮间移动焦点。
+    // 仅「返回/Back」例外——优先收起面板而不是退出播放页。
+    if (widget.isPanelVisible?.call() ?? false) {
+      // 菜单打开时全面让位：Back/Escape 由菜单内的按键处理器关闭菜单，
+      // 方向键/确认键交给菜单项焦点遍历。
+      if (widget.isMenuOpen?.call() ?? false) {
+        return KeyEventResult.ignored;
+      }
+      // 有覆盖路由（对话框等）时全面让位，否则返回键会被这里吞掉，
+      // TV 上将无法用返回键关闭对话框。
+      if (widget.isBlocked?.call() ?? false) {
+        return KeyEventResult.ignored;
+      }
+      if (event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.goBack)) {
+        widget.onPanelEscape?.call();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
     }
 
     if (!_shouldHandleShortcut()) {

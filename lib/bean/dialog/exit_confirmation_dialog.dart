@@ -91,31 +91,33 @@ class _ExitConfirmationDialogState extends State<ExitConfirmationDialog> {
               ),
             ),
             const SizedBox(height: 24),
-            RadioGroup<ExitDialogAction>(
-              groupValue: _action,
-              onChanged: (value) {
-                if (value != null) setState(() => _action = value);
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildOption(
-                    ExitDialogAction.minimizeToTray,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
-                      bottom: Radius.circular(4),
-                    ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildOption(
+                  ExitDialogAction.minimizeToTray,
+                  groupValue: _action,
+                  onChanged: (value) {
+                    if (value != null) setState(() => _action = value);
+                  },
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                    bottom: Radius.circular(4),
                   ),
-                  const SizedBox(height: 4),
-                  _buildOption(
-                    ExitDialogAction.exit,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(4),
-                      bottom: Radius.circular(20),
-                    ),
+                ),
+                const SizedBox(height: 4),
+                _buildOption(
+                  ExitDialogAction.exit,
+                  groupValue: _action,
+                  onChanged: (value) {
+                    if (value != null) setState(() => _action = value);
+                  },
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(4),
+                    bottom: Radius.circular(20),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             CheckboxListTile(
@@ -165,6 +167,8 @@ class _ExitConfirmationDialogState extends State<ExitConfirmationDialog> {
 
   Widget _buildOption(
     ExitDialogAction action, {
+    required ExitDialogAction? groupValue,
+    required ValueChanged<ExitDialogAction?>? onChanged,
     required BorderRadius borderRadius,
   }) {
     final theme = Theme.of(context);
@@ -181,7 +185,7 @@ class _ExitConfirmationDialogState extends State<ExitConfirmationDialog> {
           '结束运行并关闭应用',
         ),
     };
-    final selected = _action == action;
+    final selected = groupValue == action;
     final foreground =
         selected ? colors.onSecondaryContainer : colors.onSurface;
 
@@ -192,6 +196,8 @@ class _ExitConfirmationDialogState extends State<ExitConfirmationDialog> {
       animationDuration: _animationDuration,
       child: RadioListTile<ExitDialogAction>(
         value: action,
+        groupValue: groupValue,
+        onChanged: onChanged,
         selected: selected,
         activeColor: colors.onSecondaryContainer,
         controlAffinity: ListTileControlAffinity.trailing,

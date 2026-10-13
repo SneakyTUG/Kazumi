@@ -363,13 +363,18 @@ class _KeyCap extends StatelessWidget {
               ),
               if (onDelete != null) ...[
                 const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: onDelete,
-                  behavior: HitTestBehavior.opaque,
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 14,
-                    color: colorScheme.onSurfaceVariant,
+                // 改用 Material+InkWell 使删除按钮可获焦、可回车/确认激活（电视遥控器）。
+                Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: onDelete,
+                    focusColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],

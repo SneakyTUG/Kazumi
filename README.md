@@ -1,3 +1,34 @@
+> [!IMPORTANT]
+> **声明 / Notice**：本仓库是 [Predidit/Kazumi](https://github.com/Predidit/Kazumi) 的修改版，
+> 基于上游 **2.3.8** 版本源码（commit `11671bc0`）做 **Android TV 遥控器适配**，全部改动在 `tv` 分支。
+> 原作者 [Predidit](https://github.com/Predidit)，本项目遵循上游 **GPL-3.0** 许可证开源。
+> TV 适配相关的问题请在本仓库反馈，与上游官方无关，请勿打扰原仓库。
+
+---
+
+## 相对上游 2.3.8 的改动（Android TV 遥控器适配）
+
+所有改动均为「自管焦点」方案：索引驱动高亮 + `Focus.onKeyEvent` 自处理按键，
+不依赖 Flutter 默认焦点遍历（TV 上不可控）。
+
+1. **横屏侧边栏**（`lib/pages/menu/menu.dart`）：弃用 `NavigationRail`，
+   新增自管焦点 `_TvRail`（搜索 + 4 tab，上下移动、OK 进入、焦点描边）。
+2. **TV 专用播放面板**（新增 `lib/pages/player/player_tv_panel.dart`）：
+   遥控器 OK 唤出，顶栏（返回/标题/设置）+ 底栏（快退/播放/快进/上一集/下一集/选集/弹幕/倍速/比例），
+   行列索引焦点导航；OK 唤出、Back 收起。
+3. **TV 播放设置对话框**（同上文件）：倍速/画面比例/超分辨率/弹幕左右键调值，
+   弹幕设置/视频详情 OK 进入，替代触摸向的 `MenuAnchor` 子菜单。
+4. **播放页接线**（`player_item.dart`、`player_item_panel.dart`）：
+   遥控器唤出面板走 TV 面板（`_tvPanelMode`），触摸唤出保留原面板；
+   面板隐藏后焦点归还播放器快捷键作用域。
+5. **全局按键让位**（`player_keyboard_shortcuts.dart`）：面板可见时方向/确认键交给面板，
+   菜单/对话框打开时 Back/Escape 让位，避免按键被早期处理器吞掉。
+6. **菜单 Back 兜底**（`bean/widget/kazumi_menu.dart`）：`KazumiMenuButton` 内捕获
+   Escape/goBack 主动关闭菜单（TV 无触摸，点外部关闭不可用）。
+7. **引导/设置页遥控器适配**（`update_source_step.dart`、`settings_list.dart` 等 8 文件）：
+   去除吞方向键的 `RadioGroup`，`GestureDetector(onTap:)` 改为可获焦的 `InkWell`，
+   新增 `SettingsRadioScope` 选择语义，`togglepanel`（OK 开关面板）动作与键位。
+
 <div align=center>
 
 <h1>Kazumi</h1>

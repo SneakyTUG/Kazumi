@@ -97,7 +97,7 @@ class _LowMemoryModeDialogState extends State<_LowMemoryModeDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              RadioGroup<LowMemoryMode>(
+              SettingsRadioScope<LowMemoryMode>(
                 groupValue: mode,
                 onChanged: _selectMode,
                 child: SplitListGroup(

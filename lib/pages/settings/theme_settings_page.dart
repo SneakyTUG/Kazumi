@@ -161,26 +161,31 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                             ...colorThemes.map(
                               (e) {
                                 final index = colorThemes.indexOf(e);
-                                return GestureDetector(
-                                  onTap: () {
-                                    index == 0
-                                        ? resetTheme()
-                                        : setTheme(e['color']);
-                                    KazumiDialog.dismiss();
-                                  },
-                                  child: Column(
-                                    children: [
-                                      PaletteCard(
-                                        color: e['color'],
-                                        selected: (e['color']
-                                                    .value
-                                                    .toRadixString(16) ==
-                                                defaultThemeColor ||
-                                            (defaultThemeColor == 'default' &&
-                                                index == 0)),
-                                      ),
-                                      Text(e['label']),
-                                    ],
+                                return Material(
+                                  type: MaterialType.transparency,
+                                  child: InkWell(
+                                    onTap: () {
+                                      index == 0
+                                          ? resetTheme()
+                                          : setTheme(e['color']);
+                                      KazumiDialog.dismiss();
+                                    },
+                                    focusColor: Colors.white24,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Column(
+                                      children: [
+                                        PaletteCard(
+                                          color: e['color'],
+                                          selected: (e['color']
+                                                      .value
+                                                      .toRadixString(16) ==
+                                                  defaultThemeColor ||
+                                              (defaultThemeColor == 'default' &&
+                                                  index == 0)),
+                                        ),
+                                        Text(e['label']),
+                                      ],
+                                    ),
                                   ),
                                 );
                               },

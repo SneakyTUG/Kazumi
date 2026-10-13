@@ -84,6 +84,18 @@ class _PlayerItemState extends State<PlayerItem>
   late final Map<String, PlayerLongPressShortcutActions>
       keyboardLongPressActions;
 
+  // TV 适配：面板唤出后焦点落点（返回按钮），遥控器方向键才能在面板控件间遍历。
+  final FocusNode _panelFocusNode = FocusNode();
+
+  /// TV 适配：经遥控器 OK（togglepanel）唤出的面板使用 TV 专用面板
+  /// （自管焦点、大按钮、方向键导航）；触摸/鼠标唤出的仍用原面板。
+  bool _tvPanelMode = false;
+
+  /// TV 面板打开期间持有的 PlayerPanelHold（防自动隐藏）。
+  /// 由本类掌控生命周期：hideVideoController 时先释放，否则 hold 会让
+  /// _canHidePlayerPanel 为 false，返回键将永远收不起面板。
+  PlayerPanelHold? _tvPanelHold;
+
   late bool webDavEnable;
   late bool webDavEnableHistory;
 
@@ -356,6 +368,18 @@ class _PlayerItemState extends State<PlayerItem>
   void _initKeyboardActions() {
     keyboardActions = {
       'playorpause': () => playerController.playOrPause(),
+      'togglepanel': () {
+        // 电视遥控器无触摸：用「确认/OK」键开关控制面板。
+        // 面板隐藏时打开，面板可见时该函数不会被早期键处理器命中
+        // （面板可见会让位给内部控件），关闭改由 onPanelEscape 处理。
+        if (playerController.panel.showVideoController) {
+          hideVideoController();
+        } else {
+          setState(() => _tvPanelMode = true);
+          // acquire 内部会 showVideoController 并阻止面板自动隐藏。
+          _tvPanelHold = acquirePlayerPanelHold();
+        }
+      },
       'forward': handleShortcutForwardDown,
       'rewind': handleShortcutRewind,
       'next': () => handlePreNextEpisode('next'),
@@ -980,12 +1004,27 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void hideVideoController() {
+    // TV 面板：先释放自己的 hold 并复位模式，否则下方 _canHidePlayerPanel
+    // 检查会被 hold 挡住，返回键收不起面板。
+    if (_tvPanelMode) {
+      _tvPanelHold?.release();
+      _tvPanelHold = null;
+      _tvPanelMode = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
     if (!_canHidePlayerPanel) {
       return;
     }
     _panelVisibilityController.reverse();
     _cancelHideTimer();
     playerController.panel.showVideoController = false;
+    // TV 适配：面板隐藏后把焦点还给播放器键盘作用域，
+    // 否则焦点滞留在滑出屏幕的面板按钮上，快进/快退/音量等遥控器快捷键全部失效。
+    if (mounted) {
+      widget.keyboardFocus.requestFocus();
+    }
   }
 
   PlayerPanelHold acquirePlayerPanelHold() {
@@ -1373,6 +1412,9 @@ class _PlayerItemState extends State<PlayerItem>
     _adjustmentHudHideTimer?.cancel();
     _panelVisibilityController.dispose();
     _screenshotFeedbackController.dispose();
+    _panelFocusNode.dispose();
+    _tvPanelHold?.releaseSilently();
+    _tvPanelHold = null;
     _disposePlayerMenu();
     if (Platform.isAndroid) {
       unawaited(_syncAndroidPIPPlayerPageState(false));
@@ -1425,7 +1467,19 @@ class _PlayerItemState extends State<PlayerItem>
                       focusScopeNode: widget.keyboardFocus,
                       actions: keyboardActions,
                       longPressActions: keyboardLongPressActions,
-                      isBlocked: () => _openPlayerMenuCount > 0,
+                      isBlocked: () {
+                        if (_openPlayerMenuCount > 0) {
+                          return true;
+                        }
+                        // TV 适配：有覆盖路由（如 TV 设置对话框）时也让位，
+                        // 否则返回键会被早期处理器吞掉，对话框关不掉。
+                        final route = ModalRoute.of(context);
+                        return route != null && !route.isCurrent;
+                      },
+                      isPanelVisible:
+                          () => playerController.panel.showVideoController,
+                      onPanelEscape: hideVideoController,
+                      isMenuOpen: () => _openPlayerMenuCount > 0,
                     ),
                     Center(
                       key: _videoSurfaceKey,
@@ -1556,6 +1610,9 @@ class _PlayerItemState extends State<PlayerItem>
                             showSyncPlayPanel: showSyncPlayPanel,
                             pauseForTimedShutdown: widget.pauseForTimedShutdown,
                             disableAnimations: widget.disableAnimations,
+                            panelFocusNode: _panelFocusNode,
+                            useTvPanel: _tvPanelMode,
+                            onPrevEpisode: () => handlePreNextEpisode('prev'),
                             handleScreenShot: handleScreenshot,
                             showScreenshotCandidates: showScreenshotCandidates,
                             skipOP: skipOP,

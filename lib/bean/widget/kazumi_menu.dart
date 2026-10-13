@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 typedef KazumiMenuBuilder =
     Widget Function(BuildContext context, VoidCallback? toggle);
@@ -38,20 +39,41 @@ class KazumiMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 解析出非空 controller，供菜单内按键处理器安全调用 close()。
+    final MenuController effectiveController = controller ?? MenuController();
     return MenuButtonTheme(
       data: MenuButtonThemeData(
         // Submenu entries must use the same inset as ordinary menu items.
         style: _menuItemStyle.merge(MenuButtonTheme.of(context).style),
       ),
       child: MenuAnchor(
-        controller: controller,
+        controller: effectiveController,
         consumeOutsideTap: true,
         crossAxisUnconstrained: crossAxisUnconstrained,
         animated: animated && !MediaQuery.disableAnimationsOf(context),
         onOpen: onOpen,
         onClose: onClose,
         style: style,
-        menuChildren: menuChildren,
+        // TV 适配：菜单打开后捕获「返回/Back」「Escape」主动关闭菜单。
+        // 安卓电视遥控器没有触摸，点外部关闭不可用；Flutter 的 MenuAnchor
+        // 只保证处理 Escape，不保证处理安卓 Back（goBack），所以在这里兜底。
+        menuChildren: <Widget>[
+          Focus(
+            canRequestFocus: false,
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent &&
+                  (event.logicalKey == LogicalKeyboardKey.escape ||
+                      event.logicalKey == LogicalKeyboardKey.goBack)) {
+                effectiveController.close();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ...menuChildren,
+            ]),
+          ),
+        ],
         builder: (context, controller, _) => builder(
           context,
           enabled && menuChildren.isNotEmpty

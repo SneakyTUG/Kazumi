@@ -227,6 +227,8 @@ final Map<String, List<String>> defaultShortcuts = const {
   'speed3': ['3'],
   'speedup': ['X'],
   'speeddown': ['Z'],
+  // 电视遥控器：用「确认/OK」键开关控制面板（无触摸交互时的入口）。
+  'togglepanel': ['Enter', 'Numpad Enter', 'Select'],
 };
 
 // 键位别名

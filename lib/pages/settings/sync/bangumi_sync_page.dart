@@ -195,37 +195,40 @@ class _BangumiSyncPageState extends State<BangumiSyncPage> {
                           horizontal: 20, vertical: 4),
                       childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       children: [
-                        RadioGroup<BangumiSyncPriority>(
-                          groupValue: priority,
-                          onChanged: (value) async {
-                            if (value == null || _busy) return;
-                            await GStorage.putSetting(
-                                SettingsKeys.bangumiSyncPriority, value.value);
-                            if (mounted) setState(() {});
-                          },
-                          child: Column(
-                            children: [
-                              for (final option in BangumiSyncPriority.values)
-                                RadioListTile<BangumiSyncPriority>(
-                                  value: option,
-                                  enabled: !_busy,
-                                  title: Text(switch (option) {
-                                    BangumiSyncPriority.localFirst => '以本机为准',
-                                    BangumiSyncPriority.bangumiFirst =>
-                                      '以 Bangumi 为准',
-                                    BangumiSyncPriority.timeFirst => '保留最近更新',
-                                  }),
-                                  subtitle: Text(switch (option) {
-                                    BangumiSyncPriority.localFirst =>
-                                      '用本机状态更新 Bangumi',
-                                    BangumiSyncPriority.bangumiFirst =>
-                                      '用 Bangumi 状态更新本机',
-                                    BangumiSyncPriority.timeFirst =>
-                                      '比较两边的更新时间',
-                                  }),
-                                ),
-                            ],
-                          ),
+                        // 不使用 RadioGroup：其内置 Shortcuts.manager 会私吞四方向键，
+                        // 在 Android TV 遥控器上导致焦点无法在单选卡片间/到「继续」按钮移动。
+                        // 改用 RadioListTile 直接传 groupValue/onChanged，焦点遍历由
+                        // WidgetsApp 默认 Shortcuts/Actions(ReadingOrderTraversalPolicy) 接管。
+                        Column(
+                          children: [
+                            for (final option in BangumiSyncPriority.values)
+                              RadioListTile<BangumiSyncPriority>(
+                                value: option,
+                                groupValue: priority,
+                                enabled: !_busy,
+                                onChanged: (value) async {
+                                  if (value == null || _busy) return;
+                                  await GStorage.putSetting(
+                                      SettingsKeys.bangumiSyncPriority,
+                                      value.value);
+                                  if (mounted) setState(() {});
+                                },
+                                title: Text(switch (option) {
+                                  BangumiSyncPriority.localFirst => '以本机为准',
+                                  BangumiSyncPriority.bangumiFirst =>
+                                    '以 Bangumi 为准',
+                                  BangumiSyncPriority.timeFirst => '保留最近更新',
+                                }),
+                                subtitle: Text(switch (option) {
+                                  BangumiSyncPriority.localFirst =>
+                                    '用本机状态更新 Bangumi',
+                                  BangumiSyncPriority.bangumiFirst =>
+                                    '用 Bangumi 状态更新本机',
+                                  BangumiSyncPriority.timeFirst =>
+                                    '比较两边的更新时间',
+                                }),
+                              ),
+                          ],
                         ),
                         const Divider(indent: 16, endIndent: 16),
                         SwitchListTile(

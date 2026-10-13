@@ -27,6 +27,7 @@ import 'package:kazumi/services/player/timed_shutdown_service.dart';
 import 'package:kazumi/utils/format.dart';
 import 'package:kazumi/pages/player/player_transport_bar.dart';
 import 'package:kazumi/pages/player/player_screenshot_controls.dart';
+import 'package:kazumi/pages/player/player_tv_panel.dart';
 
 class PlayerItemPanel extends StatefulWidget {
   const PlayerItemPanel({
@@ -56,6 +57,11 @@ class PlayerItemPanel extends StatefulWidget {
     required this.showSyncPlayPanel,
     required this.pauseForTimedShutdown,
     this.disableAnimations = false,
+    // TV 适配：面板唤出后焦点落点，使遥控器方向键可在面板控件间遍历。
+    required this.panelFocusNode,
+    // TV 适配：true 时用 TV 专用面板（自管焦点、方向键导航）替代原触摸面板。
+    required this.useTvPanel,
+    required this.onPrevEpisode,
   });
 
   final PlayerController playerController;
@@ -84,6 +90,9 @@ class PlayerItemPanel extends StatefulWidget {
   final VoidCallback showSyncPlayPanel;
   final VoidCallback pauseForTimedShutdown;
   final bool disableAnimations;
+  final FocusNode panelFocusNode;
+  final bool useTvPanel;
+  final VoidCallback onPrevEpisode;
 
   @override
   State<PlayerItemPanel> createState() => _PlayerItemPanelState();
@@ -452,7 +461,33 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
             );
           }),
         ),
-        if (!_desktop)
+        // TV 适配：遥控器（togglepanel）唤出时使用 TV 专用面板，
+        // 自管焦点、大按钮，方向键/OK/返回全程可控。
+        if (widget.useTvPanel)
+          Positioned.fill(
+            child: Observer(builder: (context) {
+              final visible = !playerController.panel.lockPanel &&
+                  playerController.panel.showVideoController;
+              if (!visible) {
+                return const SizedBox.shrink();
+              }
+              return PlayerTvPanel(
+                playerController: playerController,
+                title:
+                    ' ${videoPageController.title} [${videoPageController.roadList[videoPageController.selectedEpisode.road].identifier[videoPageController.selectedEpisode.episode - 1]}]',
+                onBack: widget.onBackPressed,
+                onPrevEpisode: widget.onPrevEpisode,
+                onNextEpisode: widget.onNextEpisode,
+                setPlaybackSpeed: widget.setPlaybackSpeed,
+                handleDanmaku: widget.handleDanmaku,
+                showDanmakuSettings: _showDanmakuSettings,
+                showVideoInfo: widget.showVideoInfo,
+                handleSuperResolutionChange: widget.handleSuperResolutionChange,
+                onToggleSidePanel: widget.onToggleSidePanel,
+              );
+            }),
+          ),
+        if (!_desktop && !widget.useTvPanel)
           Positioned(
             right: 0,
             top: 0,
@@ -474,42 +509,44 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
               );
             }),
           ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: Observer(builder: (context) {
-            return Visibility(
-              visible: !playerController.panel.lockPanel &&
-                  (widget.disableAnimations
-                      ? playerController.panel.showVideoController
-                      : true),
-              child: widget.disableAnimations
-                  ? _buildTopControls(compact)
-                  : SlideTransition(
-                      position: _topOffsetAnimation,
-                      child: _buildTopControls(compact)),
-            );
-          }),
-        ),
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Observer(builder: (context) {
-            return Visibility(
-              visible: !playerController.panel.lockPanel &&
-                  (widget.disableAnimations
-                      ? playerController.panel.showVideoController
-                      : true),
-              child: widget.disableAnimations
-                  ? _buildBottomControls(compact)
-                  : SlideTransition(
-                      position: _bottomOffsetAnimation,
-                      child: _buildBottomControls(compact)),
-            );
-          }),
-        ),
+        if (!widget.useTvPanel)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Observer(builder: (context) {
+              return Visibility(
+                visible: !playerController.panel.lockPanel &&
+                    (widget.disableAnimations
+                        ? playerController.panel.showVideoController
+                        : true),
+                child: widget.disableAnimations
+                    ? _buildTopControls(compact)
+                    : SlideTransition(
+                        position: _topOffsetAnimation,
+                        child: _buildTopControls(compact)),
+              );
+            }),
+          ),
+        if (!widget.useTvPanel)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Observer(builder: (context) {
+              return Visibility(
+                visible: !playerController.panel.lockPanel &&
+                    (widget.disableAnimations
+                        ? playerController.panel.showVideoController
+                        : true),
+                child: widget.disableAnimations
+                    ? _buildBottomControls(compact)
+                    : SlideTransition(
+                        position: _bottomOffsetAnimation,
+                        child: _buildBottomControls(compact)),
+              );
+            }),
+          ),
       ],
     );
   }
@@ -773,6 +810,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
             children: [
               IconButton(
                 color: Colors.white,
+                focusNode: widget.panelFocusNode,
                 icon: const Icon(Icons.arrow_back_rounded),
                 tooltip: '返回',
                 onPressed: widget.onBackPressed,

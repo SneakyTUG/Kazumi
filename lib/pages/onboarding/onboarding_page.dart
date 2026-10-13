@@ -109,7 +109,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   Future<void> _goToPage(int index) async {
-    FocusManager.instance.primaryFocus?.unfocus();
+    // 注意：不要调用 primaryFocus?.unfocus()。
+    // unfocus 会使 FocusManager.primaryFocus 变为 null，而 handleKeyMessage 在
+    // primaryFocus == null 时直接丢弃所有按键事件（return false），导致下一页的
+    // 遥控器方向键/确认键全部失效。焦点遍历交给 WidgetsApp 默认焦点体系即可。
     if (MediaQuery.disableAnimationsOf(context)) {
       _pageController.jumpToPage(index);
     } else {
@@ -185,6 +188,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         child: Text(_currentIndex == 0 ? '退出' : '上一步'),
       );
       final primary = FilledButton.icon(
+        autofocus: true,
         style: FilledButton.styleFrom(
           minimumSize: const Size(176, 56),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

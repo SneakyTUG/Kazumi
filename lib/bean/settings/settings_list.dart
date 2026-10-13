@@ -75,6 +75,51 @@ class SettingsSection extends StatelessWidget {
   }
 }
 
+/// Focus-friendly replacement for [RadioGroup] on TV remotes.
+///
+/// [RadioGroup] installs a [Shortcuts] manager that maps the four arrow keys to
+/// radio selection; once a radio has focus the D-pad can no longer reach the
+/// focus traversal system, so the user cannot move focus out of the group.
+/// This scope only carries the group value and the change callback, which
+/// keeps the arrows in their normal focus-traversal meaning.
+class SettingsRadioScope<T> extends InheritedWidget {
+  const SettingsRadioScope({
+    super.key,
+    required this.groupValue,
+    required this.onChanged,
+    required super.child,
+  });
+
+  final T? groupValue;
+  final ValueChanged<T?> onChanged;
+
+  static SettingsRadioScope<T>? maybeOf<T>(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SettingsRadioScope<T>>();
+
+  @override
+  bool updateShouldNotify(SettingsRadioScope<T> oldWidget) =>
+      oldWidget.groupValue != groupValue;
+}
+
+/// Adapter that lets a bare [Radio] read the group state from a
+/// [SettingsRadioScope] without a [RadioGroup] ancestor (and without the
+/// deprecated groupValue/onChanged parameters).
+class SettingsRadioRegistry<T> implements RadioGroupRegistry<T> {
+  const SettingsRadioRegistry(this.groupValue, this.onChanged);
+
+  @override
+  final T? groupValue;
+
+  @override
+  final ValueChanged<T?> onChanged;
+
+  @override
+  void registerClient(RadioClient<T> radio) {}
+
+  @override
+  void unregisterClient(RadioClient<T> radio) {}
+}
+
 class SettingsRadioSection<T> extends StatelessWidget {
   const SettingsRadioSection({
     super.key,
@@ -91,7 +136,7 @@ class SettingsRadioSection<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RadioGroup<T>(
+    return SettingsRadioScope<T>(
       groupValue: groupValue,
       onChanged: onChanged,
       child: SettingsSection(title: title, tiles: tiles),
@@ -363,8 +408,8 @@ class SettingsTile<T> extends StatelessWidget {
       case _TileKind.toggle:
         return onToggle == null ? null : () => onToggle!(null);
       case _TileKind.radio:
-        final registry = RadioGroup.maybeOf<T>(context);
-        return registry == null ? null : () => registry.onChanged(radioValue);
+        final scope = SettingsRadioScope.maybeOf<T>(context);
+        return scope == null ? null : () => scope.onChanged(radioValue);
     }
   }
 
@@ -415,7 +460,21 @@ class SettingsTile<T> extends StatelessWidget {
               ],
               if (_kind == _TileKind.radio) ...[
                 const SizedBox(width: 12),
-                Radio<T>(value: radioValue as T, enabled: enabled),
+                // The row InkWell is the only focus stop; the radio circle is a
+                // pure visual indicator (ExcludeFocus) driven by the scope.
+                Builder(builder: (context) {
+                  final scope = SettingsRadioScope.maybeOf<T>(context);
+                  return ExcludeFocus(
+                    child: Radio<T>(
+                      value: radioValue as T,
+                      groupRegistry: scope == null
+                          ? null
+                          : SettingsRadioRegistry<T>(
+                              scope.groupValue, scope.onChanged),
+                      enabled: enabled && scope != null,
+                    ),
+                  );
+                }),
               ],
             ],
           ),

@@ -273,9 +273,12 @@ class _ImageViewerState extends State<ImageViewer> {
   Widget _buildSingleImage() {
     return Listener(
       onPointerSignal: _handlePointerSignal,
-      child: GestureDetector(
-        onTap: _closePreview,
-        child: PhotoView(
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: _closePreview,
+          focusColor: Colors.white24,
+          child: PhotoView(
           imageProvider: CachedNetworkImageProvider(widget.imageUrls.first),
           controller: _photoViewController,
           scaleStateController: _scaleStateController,
@@ -289,6 +292,7 @@ class _ImageViewerState extends State<ImageViewer> {
             child: LoadingIndicator(),
           ),
           errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+          ),
         ),
       ),
     );
@@ -297,9 +301,12 @@ class _ImageViewerState extends State<ImageViewer> {
   Widget _buildGallery() {
     return Listener(
       onPointerSignal: _handlePointerSignal,
-      child: GestureDetector(
-        onTap: _closePreview,
-        child: PhotoViewGallery.builder(
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: _closePreview,
+          focusColor: Colors.white24,
+          child: PhotoViewGallery.builder(
           pageController: _pageController,
           itemCount: widget.imageUrls.length,
           onPageChanged: (index) => setState(() => _currentIndex = index),
@@ -330,6 +337,7 @@ class _ImageViewerState extends State<ImageViewer> {
               errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
             );
           },
+          ),
         ),
       ),
     );
