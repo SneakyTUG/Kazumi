@@ -166,6 +166,12 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    // 有更高层路由（设置对话框等）覆盖时全面让位，键交给覆盖层处理，
+    // 避免转场期间按键落到面板上、高亮在对话框后面乱跳。
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      return KeyEventResult.ignored;
+    }
     // 面板期间有任意按键活动就重置自动隐藏计时。
     _restartIdleTimer();
     final key = event.logicalKey;
@@ -684,6 +690,10 @@ class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
   @override
   void initState() {
     super.initState();
+    // TV 适配：注册早期键处理器，保证按键无论对话框焦点迁移是否完成
+    // 都先到本对话框——否则打开动画期间按键会落到身后的 TV 面板上，
+    // 造成「设置界面点击不流畅」。卸载时必须移除。
+    FocusManager.instance.addEarlyKeyEventHandler(_handleEarlyKey);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -693,8 +703,21 @@ class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
 
   @override
   void dispose() {
+    FocusManager.instance.removeEarlyKeyEventHandler(_handleEarlyKey);
     _focusNode.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleEarlyKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // 有更高层路由（如弹幕设置）覆盖时全面让位。
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      return KeyEventResult.ignored;
+    }
+    return _processKey(event);
   }
 
   void _adjustSpeed(int delta) {
@@ -723,6 +746,12 @@ class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    // 早期键处理器已接管（返回 handled 后事件不会到这里），
+    // 这里仅作为焦点路径上的兜底。
+    return _processKey(event);
+  }
+
+  KeyEventResult _processKey(KeyEvent event) {
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowUp) {
       setState(() => _index = (_index - 1).clamp(0, _rowKeys.length - 1));
@@ -740,8 +769,10 @@ class _TvPlayerSettingsDialogState extends State<_TvPlayerSettingsDialog> {
       return KeyEventResult.handled;
     }
     final adjust = _adjusters[_index];
-    if (key == LogicalKeyboardKey.arrowLeft && adjust != null) {
-      adjust(-1);
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      // 无论当前行是否有调节值都消费左键，避免泄漏给默认焦点遍历
+      // 导致焦点跑出对话框、后续按键失灵。
+      adjust?.call(-1);
       return KeyEventResult.handled;
     }
     if ((key == LogicalKeyboardKey.enter ||
