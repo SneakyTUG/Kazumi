@@ -19,6 +19,7 @@ class ScaffoldMenu extends StatefulWidget {
 
 class _ScaffoldMenu extends State<ScaffoldMenu> with RouteAware {
   final _outletKey = GlobalKey<RouterOutletState>();
+  final _railKey = GlobalKey<_TvRailState>();
   late int _selectedIndex = menu.indexForPath(widget.location);
   DateTime? _lastExitPromptAt;
 
@@ -83,6 +84,13 @@ class _ScaffoldMenu extends State<ScaffoldMenu> with RouteAware {
   void _handleSystemBack(BuildContext context) {
     if (_outletKey.currentState?.maybePop() ?? false) {
       _lastExitPromptAt = null;
+      return;
+    }
+
+    // TV 适配：焦点在内容区时，返回键先回到侧边栏（TV 逐级返回习惯），
+    // 而不是直接退出应用；焦点已在侧边栏时才走切 tab / 退出确认逻辑。
+    if (_needsRailAutofocus &&
+        (_railKey.currentState?.requestRailFocus() ?? false)) {
       return;
     }
 
@@ -190,6 +198,7 @@ class _ScaffoldMenu extends State<ScaffoldMenu> with RouteAware {
             // 电视遥控器下焦点不可控（启动焦点落在内容区、rail 永远选不了），
             // 改为索引驱动 + 按键自处理，上下移动、OK 激活、左右交给遍历。
             child: _TvRail(
+              key: _railKey,
               selectedIndex: selectedIndex,
               needsAutofocus: _needsRailAutofocus,
               onSearch: () => context.pushNamed('/search/'),
@@ -204,10 +213,11 @@ class _ScaffoldMenu extends State<ScaffoldMenu> with RouteAware {
 }
 
 /// TV（遥控器）专用侧边栏：自管焦点，不依赖 Flutter 默认焦点遍历。
-/// 上下移动高亮、OK 激活（搜索/切 tab）、左右方向交给默认焦点遍历
-/// （右进内容区 / 从内容区最左侧控件左移回来）。
+/// 上下移动高亮、OK 激活（搜索/切 tab）、右键进入内容区；
+/// 从内容区返回侧边栏由 Shell 的返回键处理（逐级返回）。
 class _TvRail extends StatefulWidget {
   const _TvRail({
+    super.key,
     required this.selectedIndex,
     required this.needsAutofocus,
     required this.onSearch,
@@ -245,6 +255,17 @@ class _TvRailState extends State<_TvRail> {
     super.dispose();
   }
 
+  /// Shell 返回键用：焦点不在侧边栏时把焦点交回侧边栏并高亮当前 tab。
+  /// 已在侧边栏（或未挂载）时返回 false，由调用方继续走原返回逻辑。
+  bool requestRailFocus() {
+    if (_focusNode.hasFocus) {
+      return false;
+    }
+    setState(() => _focusIndex = widget.selectedIndex + 1);
+    _focusNode.requestFocus();
+    return true;
+  }
+
   void _activate(int index) {
     if (index == 0) {
       widget.onSearch();
@@ -266,6 +287,15 @@ class _TvRailState extends State<_TvRail> {
       setState(() => _focusIndex = (_focusIndex + 1).clamp(0, 4));
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      // 进入内容区：显式向右做一次方向遍历，焦点迁到内容区第一个可聚焦控件。
+      final ctx = _focusNode.context;
+      if (ctx != null) {
+        Actions.invoke(
+            ctx, const DirectionalFocusIntent(TraversalDirection.right));
+      }
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter ||
         key == LogicalKeyboardKey.select) {
@@ -274,15 +304,13 @@ class _TvRailState extends State<_TvRail> {
       }
       return KeyEventResult.handled;
     }
-    // 左/右：交给默认焦点遍历（右侧进内容区；内容区最左侧控件左移可回 rail）。
     return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final items = const <({IconData icon, IconData selectedIcon, String label})>[
-      (icon: Icons.search_rounded, selectedIcon: Icons.search_rounded, label: '搜索'),
+    const tabs = <({IconData icon, IconData selectedIcon, String label})>[
       (icon: Icons.home_outlined, selectedIcon: Icons.home, label: '推荐'),
       (icon: Icons.timeline_outlined, selectedIcon: Icons.timeline, label: '时间表'),
       (icon: Icons.favorite_border, selectedIcon: Icons.favorite, label: '追番'),
@@ -293,24 +321,56 @@ class _TvRailState extends State<_TvRail> {
       autofocus: widget.needsAutofocus,
       onKeyEvent: _handleKey,
       child: SizedBox(
-        width: 116,
+        width: 148,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            for (var i = 0; i < items.length; i++)
-              _TvRailItem(
-                icon: i == widget.selectedIndex + 1
-                    ? items[i].selectedIcon
-                    : items[i].icon,
-                label: items[i].label,
-                focused: _focusIndex == i,
-                selected: i == widget.selectedIndex + 1,
-                colors: colors,
-                onTap: () {
-                  setState(() => _focusIndex = i);
-                  _activate(i);
-                },
+            const SizedBox(height: 18),
+            // 顶部标识
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: BorderRadius.circular(14),
               ),
+              child: Icon(Icons.play_arrow_rounded,
+                  color: colors.onPrimary, size: 30),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < tabs.length; i++)
+                    _TvRailItem(
+                      icon: i == widget.selectedIndex
+                          ? tabs[i].selectedIcon
+                          : tabs[i].icon,
+                      label: tabs[i].label,
+                      focused: _focusIndex == i + 1,
+                      selected: i == widget.selectedIndex,
+                      colors: colors,
+                      onTap: () {
+                        setState(() => _focusIndex = i + 1);
+                        _activate(i + 1);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            // 底部搜索
+            _TvRailItem(
+              icon: Icons.search_rounded,
+              label: '搜索',
+              focused: _focusIndex == 0,
+              selected: false,
+              colors: colors,
+              onTap: () {
+                setState(() => _focusIndex = 0);
+                _activate(0);
+              },
+            ),
+            const SizedBox(height: 18),
           ],
         ),
       ),
@@ -337,51 +397,62 @@ class _TvRailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: focused
-            ? colors.primary.withOpacity(0.18)
-            : selected
-                ? colors.secondaryContainer
-                : Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: focused ? colors.primary : Colors.transparent,
-          width: 2,
+    final iconColor = selected || focused
+        ? colors.primary
+        : colors.onSurfaceVariant;
+    return AnimatedScale(
+      scale: focused ? 1.06 : 1.0,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: focused
+              ? colors.primary.withOpacity(0.14)
+              : selected
+                  ? colors.primaryContainer
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: focused ? colors.primary : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: focused
+              ? [
+                  BoxShadow(
+                    color: colors.primary.withOpacity(0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : const <BoxShadow>[],
         ),
-      ),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 26,
-                color: selected
-                    ? colors.primary
-                    : focused
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 26, color: iconColor),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: focused || selected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    color: selected || focused
                         ? colors.primary
                         : colors.onSurfaceVariant,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: selected
-                      ? colors.primary
-                      : focused
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

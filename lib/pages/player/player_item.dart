@@ -46,6 +46,7 @@ class PlayerItem extends StatefulWidget {
     required this.videoPageController,
     required this.fillsWindow,
     this.onToggleSidePanel,
+    this.onSidePanelClose,
     required this.changeEpisode,
     required this.onBackPressed,
     required this.keyboardFocus,
@@ -57,6 +58,7 @@ class PlayerItem extends StatefulWidget {
   final VideoPageController videoPageController;
   final bool fillsWindow;
   final VoidCallback? onToggleSidePanel;
+  final VoidCallback? onSidePanelClose;
   final Future<void> Function(int episode, {int currentRoad, int offset})
       changeEpisode;
   final VoidCallback onBackPressed;
@@ -1480,6 +1482,8 @@ class _PlayerItemState extends State<PlayerItem>
                           () => playerController.panel.showVideoController,
                       onPanelEscape: hideVideoController,
                       isMenuOpen: () => _openPlayerMenuCount > 0,
+                      isSidePanelOpen: () => videoPageController.sidePanelOpen,
+                      onSidePanelClose: widget.onSidePanelClose,
                     ),
                     Center(
                       key: _videoSurfaceKey,
@@ -1613,6 +1617,7 @@ class _PlayerItemState extends State<PlayerItem>
                             panelFocusNode: _panelFocusNode,
                             useTvPanel: _tvPanelMode,
                             onPrevEpisode: () => handlePreNextEpisode('prev'),
+                            onHidePanel: hideVideoController,
                             handleScreenShot: handleScreenshot,
                             showScreenshotCandidates: showScreenshotCandidates,
                             skipOP: skipOP,

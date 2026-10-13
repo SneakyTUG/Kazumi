@@ -335,8 +335,15 @@ class _VideoPageState extends State<VideoPage>
                 key: _sidePanelKey,
                 fullscreen: videoPageController.isFullscreen,
                 disableAnimations: disableAnimations,
-                onOpened: _revealCurrentEpisode,
-                onClosed: keyboardFocus.requestFocus,
+                onOpened: () {
+                  // TV 适配：记录侧面板状态，播放页 Back 键据此逐级返回。
+                  videoPageController.sidePanelOpen = true;
+                  _revealCurrentEpisode();
+                },
+                onClosed: () {
+                  videoPageController.sidePanelOpen = false;
+                  keyboardFocus.requestFocus();
+                },
                 child: tabBody,
               ),
             ),
@@ -472,6 +479,7 @@ class _VideoPageState extends State<VideoPage>
                   videoPageController: videoPageController,
                   onToggleSidePanel:
                       layout.hasSidePanel ? _toggleSidePanel : null,
+                  onSidePanelClose: _closeSidePanel,
                   changeEpisode: changeEpisode,
                   onBackPressed: _onBackPressed,
                   keyboardFocus: keyboardFocus,

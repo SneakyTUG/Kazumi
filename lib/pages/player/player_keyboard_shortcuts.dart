@@ -34,6 +34,8 @@ class PlayerKeyboardShortcuts extends StatefulWidget {
     this.isPanelVisible,
     this.onPanelEscape,
     this.isMenuOpen,
+    this.isSidePanelOpen,
+    this.onSidePanelClose,
   });
 
   final FocusNode focusScopeNode;
@@ -50,6 +52,10 @@ class PlayerKeyboardShortcuts extends StatefulWidget {
   // 打开时 Back/Escape 必须放行给菜单自身处理（菜单内的按键处理器会关闭菜单），
   // 否则会被本处理器吞掉，遥控器无法用返回键关闭菜单。
   final bool Function()? isMenuOpen;
+  // TV 适配：选集侧面板是否打开。打开时 Back/Escape 收起侧面板（而不是
+  // 退出播放页），方向键/确认键交给侧面板内部控件，实现逐级返回。
+  final bool Function()? isSidePanelOpen;
+  final VoidCallback? onSidePanelClose;
 
   @override
   State<PlayerKeyboardShortcuts> createState() =>
@@ -106,6 +112,18 @@ class _PlayerKeyboardShortcutsState extends State<PlayerKeyboardShortcuts> {
     // 面板可见时：早期键处理器全面让位，把方向键/确认键交给面板内的焦点控件，
     // 否则箭头键会被播放器快捷键吃掉，电视遥控器无法在面板按钮间移动焦点。
     // 仅「返回/Back」例外——优先收起面板而不是退出播放页。
+    // TV 适配：选集侧面板打开时全面让位——Back/Escape 收起侧面板，
+    // 其余按键交给侧面板内部控件，保证「播放面板 → 选集 → 返回」逐级回退。
+    if (widget.isSidePanelOpen?.call() ?? false) {
+      if (event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.goBack)) {
+        widget.onSidePanelClose?.call();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     if (widget.isPanelVisible?.call() ?? false) {
       // 菜单打开时全面让位：Back/Escape 由菜单内的按键处理器关闭菜单，
       // 方向键/确认键交给菜单项焦点遍历。

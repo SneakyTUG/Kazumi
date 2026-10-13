@@ -117,6 +117,10 @@ abstract class _VideoPageController with Store implements Disposable {
   @observable
   bool isPip = false;
 
+  /// TV 适配：选集侧面板是否打开（供播放页早期键处理器判断 Back 行为）。
+  /// 普通字段即可：按键时读当前值，无需触发 UI 重建。
+  bool sidePanelOpen = false;
+
   @observable
   int historyOffset = 0;
 

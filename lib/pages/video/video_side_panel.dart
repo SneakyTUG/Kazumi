@@ -116,11 +116,16 @@ class VideoSidePanelState extends State<VideoSidePanel>
                 bottomStart: Radius.circular(28),
               ),
               clipBehavior: Clip.antiAlias,
-              // Consume the hidden status-bar inset for the entire overlay.
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: true,
-                child: SafeArea(child: widget.child),
+              // TV 适配：面板打开（挂载）时把焦点交给面板内容，
+              // 遥控器方向键才能直接在选集列表等内部控件间移动。
+              child: Focus(
+                autofocus: true,
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: true,
+                  removeLeft: true,
+                  child: SafeArea(child: widget.child),
+                ),
               ),
             ),
           ),

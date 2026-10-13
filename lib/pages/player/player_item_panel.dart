@@ -62,6 +62,7 @@ class PlayerItemPanel extends StatefulWidget {
     // TV 适配：true 时用 TV 专用面板（自管焦点、方向键导航）替代原触摸面板。
     required this.useTvPanel,
     required this.onPrevEpisode,
+    required this.onHidePanel,
   });
 
   final PlayerController playerController;
@@ -93,6 +94,7 @@ class PlayerItemPanel extends StatefulWidget {
   final FocusNode panelFocusNode;
   final bool useTvPanel;
   final VoidCallback onPrevEpisode;
+  final VoidCallback onHidePanel;
 
   @override
   State<PlayerItemPanel> createState() => _PlayerItemPanelState();
@@ -483,7 +485,14 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                 showDanmakuSettings: _showDanmakuSettings,
                 showVideoInfo: widget.showVideoInfo,
                 handleSuperResolutionChange: widget.handleSuperResolutionChange,
-                onToggleSidePanel: widget.onToggleSidePanel,
+                // TV 适配：选集 = 收起 TV 面板 + 打开选集侧面板（二级界面），
+                // 避免面板握着焦点导致侧面板无法操作。
+                onToggleSidePanel: widget.onToggleSidePanel == null
+                    ? null
+                    : () {
+                        widget.onHidePanel();
+                        widget.onToggleSidePanel!();
+                      },
               );
             }),
           ),
