@@ -1397,7 +1397,14 @@ class _PlayerItemState extends State<PlayerItem>
     unawaited(_bindAudioService());
     playerTimer = getPlayerTimer();
     windowManager.addListener(this);
-    showVideoController();
+    if (!isDesktop()) {
+      // TV 适配：进入播放页直接呈现 TV 控制面板（面板自带 5 秒空闲自动隐藏），
+      // 不再先显示原版控制层、等自动隐藏后才露出干净画面。
+      _tvPanelMode = true;
+      _tvPanelHold = acquirePlayerPanelHold();
+    } else {
+      showVideoController();
+    }
   }
 
   @override

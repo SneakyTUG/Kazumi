@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kazumi/bean/dialog/dialog_helper.dart';
 import 'package:kazumi/services/storage/storage.dart';
 import 'package:kazumi/utils/constants.dart';
 
@@ -68,6 +69,9 @@ class _PlayerKeyboardShortcutsState extends State<PlayerKeyboardShortcuts> {
   final Map<LogicalKeyboardKey, PlayerLongPressShortcutActions>
       _activeLongPressKeys =
       <LogicalKeyboardKey, PlayerLongPressShortcutActions>{};
+  // TV 适配：面板收起状态下按遥控器返回键，第一次只提示、2 秒内再按才退出，
+  // 防止单次误触直接退出播放。设置对话框等覆盖层打开时不受影响（先关覆盖层）。
+  DateTime? _lastBackPressAt;
 
   @override
   void initState() {
@@ -161,6 +165,23 @@ class _PlayerKeyboardShortcutsState extends State<PlayerKeyboardShortcuts> {
         widget.onPanelEscape?.call();
         return KeyEventResult.handled;
       }
+      return KeyEventResult.ignored;
+    }
+
+    // TV 适配：面板收起后按遥控器返回键（goBack）不直接退出播放，
+    // 第一次提示、2 秒内再按一次才放行默认返回行为（退出播放/返回详情）。
+    // 仅拦截 goBack，不拦截 Escape（避免影响桌面端退出全屏快捷键）。
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.goBack) {
+      final now = DateTime.now();
+      final last = _lastBackPressAt;
+      if (last == null ||
+          now.difference(last) > const Duration(seconds: 2)) {
+        _lastBackPressAt = now;
+        KazumiDialog.showToast(message: '再按一次返回', context: context);
+        return KeyEventResult.handled;
+      }
+      _lastBackPressAt = null;
       return KeyEventResult.ignored;
     }
 

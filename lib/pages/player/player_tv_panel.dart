@@ -34,6 +34,7 @@ class PlayerTvPanel extends StatefulWidget {
     required this.showVideoInfo,
     required this.handleSuperResolutionChange,
     this.onToggleSidePanel,
+    this.onHidePanel,
   });
 
   final PlayerController playerController;
@@ -47,6 +48,8 @@ class PlayerTvPanel extends StatefulWidget {
   final VoidCallback showVideoInfo;
   final Future<void> Function(SuperResolutionMode) handleSuperResolutionChange;
   final VoidCallback? onToggleSidePanel;
+  // 收起本面板（TV 适配：5 秒空闲自动隐藏时由面板回调播放页）。
+  final VoidCallback? onHidePanel;
 
   @override
   State<PlayerTvPanel> createState() => _PlayerTvPanelState();
@@ -56,6 +59,11 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'PlayerTvPanel');
   int _row = 1; // 初始焦点落在底栏（播放键）
   int _col = 0;
+
+  // TV 标准节奏：面板显示后若 5 秒内无按键则自动收起，露出干净画面；
+  // 任意按键都会重置计时；有对话框/新路由覆盖时暂缓计时。
+  static const Duration _idleTimeout = Duration(seconds: 5);
+  Timer? _idleTimer;
 
   // 与 build 中渲染的项目一一对应的动作矩阵，build 内每次刷新。
   List<List<VoidCallback>> _actions = const [<VoidCallback>[], <VoidCallback>[]];
@@ -69,12 +77,32 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
         _focusNode.requestFocus();
       }
     });
+    _restartIdleTimer();
   }
 
   @override
   void dispose() {
+    _idleTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _restartIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = Timer(_idleTimeout, _onIdleTimeout);
+  }
+
+  void _onIdleTimeout() {
+    if (!mounted) {
+      return;
+    }
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      // 设置对话框等覆盖层还在最上层：暂缓自动隐藏，等回来后重新计时。
+      _restartIdleTimer();
+      return;
+    }
+    widget.onHidePanel?.call();
   }
 
   int get _rowCount => 2;
@@ -138,6 +166,8 @@ class _PlayerTvPanelState extends State<PlayerTvPanel> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    // 面板期间有任意按键活动就重置自动隐藏计时。
+    _restartIdleTimer();
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowLeft) {
       _move(0, -1);
@@ -437,8 +467,8 @@ class _TvRoundButton extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOutCubic,
-      width: 46,
-      height: 46,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
         color: focused
             ? tvAccentColor
@@ -588,7 +618,7 @@ class _TvItem extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -609,7 +639,7 @@ class _TvItem extends StatelessWidget {
                   style: TextStyle(
                     color: focused
                         ? Colors.white.withOpacity(0.92)
-                        : Colors.white60,
+                        : Colors.white70,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),

@@ -322,37 +322,37 @@ class _TvRailState extends State<_TvRail> {
       autofocus: widget.needsAutofocus,
       onKeyEvent: _handleKey,
       child: SizedBox(
-        width: 184,
+        width: 150,
         child: Column(
           children: [
-            const SizedBox(height: 22),
+            const SizedBox(height: 16),
             // 品牌区：logo + 应用名
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
                       color: tvAccentColor,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
                           color: tvAccentColor.withOpacity(0.35),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: const Icon(Icons.play_arrow_rounded,
-                        color: Colors.white, size: 26),
+                        color: Colors.white, size: 22),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Text(
                     'Kazumi',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
                       color: colors.onSurface,
@@ -361,7 +361,7 @@ class _TvRailState extends State<_TvRail> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -385,14 +385,14 @@ class _TvRailState extends State<_TvRail> {
             ),
             // 分隔线 + 底部搜索
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Divider(
                 height: 1,
                 thickness: 1,
                 color: colors.onSurfaceVariant.withOpacity(0.15),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _TvRailItem(
               icon: Icons.search_rounded,
               label: '搜索',
@@ -404,7 +404,7 @@ class _TvRailState extends State<_TvRail> {
                 _activate(0);
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -447,21 +447,21 @@ class _TvRailItem extends StatelessWidget {
       textColor = colors.onSurfaceVariant;
     }
     return Padding(
-      padding: const EdgeInsets.only(left: 12, right: 14, top: 5, bottom: 5),
+      padding: const EdgeInsets.only(left: 10, right: 12, top: 4, bottom: 4),
       child: Row(
         children: [
           // 选中指示条（未选中时收缩为 0 高度）
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
-            width: 4,
-            height: selected ? 22 : 0,
+            width: 3,
+            height: selected ? 18 : 0,
             decoration: BoxDecoration(
               color: colors.primary,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 9),
+          const SizedBox(width: 8),
           Expanded(
             child: AnimatedScale(
               scale: focused ? 1.04 : 1.0,
@@ -470,14 +470,14 @@ class _TvRailItem extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCubic,
-                height: 50,
+                height: 44,
                 decoration: BoxDecoration(
                   color: focused
                       ? colors.primary
                       : selected
                           ? colors.primaryContainer
                           : colors.onSurfaceVariant.withOpacity(0.07),
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(22),
                   border: Border.all(
                     color: focused
                         ? colors.onPrimary.withOpacity(0.85)
@@ -488,8 +488,8 @@ class _TvRailItem extends StatelessWidget {
                       ? [
                           BoxShadow(
                             color: colors.primary.withOpacity(0.40),
-                            blurRadius: 16,
-                            offset: const Offset(0, 3),
+                            blurRadius: 14,
+                            offset: const Offset(0, 2),
                           ),
                         ]
                       : const <BoxShadow>[],
@@ -498,15 +498,15 @@ class _TvRailItem extends StatelessWidget {
                   onTap: onTap,
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        Icon(icon, size: 23, color: iconColor),
-                        const SizedBox(width: 11),
+                        Icon(icon, size: 21, color: iconColor),
+                        const SizedBox(width: 9),
                         Text(
                           label,
                           style: TextStyle(
-                            fontSize: 14.5,
+                            fontSize: 14,
                             fontWeight: focused || selected
                                 ? FontWeight.w600
                                 : FontWeight.w500,

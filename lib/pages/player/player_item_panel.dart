@@ -487,6 +487,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                 handleSuperResolutionChange: widget.handleSuperResolutionChange,
                 // TV 适配：选集 = 收起 TV 面板 + 打开选集侧面板（二级界面），
                 // 避免面板握着焦点导致侧面板无法操作。
+                onHidePanel: widget.onHidePanel,
                 onToggleSidePanel: widget.onToggleSidePanel == null
                     ? null
                     : () {
